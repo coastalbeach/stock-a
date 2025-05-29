@@ -1,0 +1,200 @@
+# 衍生指标配置文件
+# 定义各种实体类型（股票、行业、指数）的衍生指标
+
+# 通用指标配置
+# 这些指标适用于所有类型的实体
+common_indicators:
+  # 金叉信号
+  golden_cross:
+    name: "金叉信号"
+    description: "短期均线从下方穿过长期均线形成的买入信号"
+    required_columns: ["SMA5", "SMA20"]
+    type: "SMALLINT"
+    default: 0
+  
+  # 死叉信号
+  death_cross:
+    name: "死叉信号"
+    description: "短期均线从上方穿过长期均线形成的卖出信号"
+    required_columns: ["SMA5", "SMA20"]
+    type: "SMALLINT"
+    default: 0
+  
+  # RSI超买信号
+  rsi_overbought:
+    name: "RSI超买"
+    description: "RSI指标超过70，表示可能超买"
+    required_columns: ["RSI14"]
+    type: "SMALLINT"
+    default: 0
+  
+  # RSI超卖信号
+  rsi_oversold:
+    name: "RSI超卖"
+    description: "RSI指标低于30，表示可能超卖"
+    required_columns: ["RSI14"]
+    type: "SMALLINT"
+    default: 0
+  
+  # MACD金叉信号
+  macd_golden_cross:
+    name: "MACD金叉"
+    description: "DIFF从下方穿过DEA形成的买入信号"
+    required_columns: ["DIFF", "DEA"]
+    type: "SMALLINT"
+    default: 0
+  
+  # MACD死叉信号
+  macd_death_cross:
+    name: "MACD死叉"
+    description: "DIFF从上方穿过DEA形成的卖出信号"
+    required_columns: ["DIFF", "DEA"]
+    type: "SMALLINT"
+    default: 0
+
+# 股票特有指标
+stock_indicators:
+  # 量价背离
+  volume_price_divergence:
+    name: "量价背离"
+    description: "价格创新高但成交量未创新高，或价格创新低但成交量未创新低"
+    required_columns: ["收盘价", "成交量"]
+    type: "SMALLINT"
+    default: 0
+  
+  # 突破前期高点
+  break_previous_high:
+    name: "突破前期高点"
+    description: "价格突破前期高点"
+    required_columns: ["最高价"]
+    type: "SMALLINT"
+    default: 0
+  
+  # 跌破前期低点
+  break_previous_low:
+    name: "跌破前期低点"
+    description: "价格跌破前期低点"
+    required_columns: ["最低价"]
+    type: "SMALLINT"
+    default: 0
+
+# 行业特有指标
+industry_indicators:
+  # 行业强度
+  industry_strength:
+    name: "行业强度"
+    description: "行业当前价格相对于20日均线的强度"
+    required_columns: ["收盘", "SMA20"]
+    type: "FLOAT"
+    default: 0.0
+  
+  # 行业轮动信号
+  industry_rotation:
+    name: "行业轮动信号"
+    description: "行业相对大盘的强弱变化信号"
+    required_columns: ["收盘"]
+    type: "SMALLINT"
+    default: 0
+  
+  # 行业趋势强度
+  industry_trend_strength:
+    name: "行业趋势强度"
+    description: "行业价格趋势的强度"
+    required_columns: ["收盘", "SMA20", "SMA60"]
+    type: "FLOAT"
+    default: 0.0
+
+# 指数特有指标
+index_indicators:
+  # 市场宽度
+  market_breadth:
+    name: "市场宽度"
+    description: "上涨股票数量与下跌股票数量之比"
+    required_columns: ["收盘"]
+    type: "FLOAT"
+    default: 0.0
+  
+  # 市场情绪
+  market_sentiment:
+    name: "市场情绪"
+    description: "基于多个技术指标综合计算的市场情绪指标"
+    required_columns: ["RSI14", "MACD", "KDJ_K"]
+    type: "FLOAT"
+    default: 0.0
+  
+  # 波动率
+  volatility:
+    name: "波动率"
+    description: "价格波动的剧烈程度"
+    required_columns: ["最高价", "最低价"]
+    type: "FLOAT"
+    default: 0.0
+
+# 表结构定义
+tables:
+  # 股票衍生指标表
+  股票衍生指标:
+    name: 股票衍生指标
+    description: "A股股票衍生技术指标数据表"
+    partitioning:
+      type: HASH
+      column: 股票代码
+      partitions: 16  # 创建16个分区
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      日期:
+        type: DATE
+        primary_key: true
+        description: "交易日期"
+      updated_at:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_股票衍生指标_日期
+        columns: ["日期"]
+  
+  # 行业衍生指标表
+  行业衍生指标:
+    name: 行业衍生指标
+    description: "行业衍生技术指标数据表"
+    columns:
+      行业名称:
+        type: VARCHAR(50)
+        primary_key: true
+        description: "行业名称"
+      日期:
+        type: DATE
+        primary_key: true
+        description: "交易日期"
+      updated_at:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_行业衍生指标_日期
+        columns: ["日期"]
+  
+  # 指数衍生指标表
+  指数衍生指标:
+    name: 指数衍生指标
+    description: "指数衍生技术指标数据表"
+    columns:
+      指数代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "指数代码"
+      日期:
+        type: DATE
+        primary_key: true
+        description: "交易日期"
+      updated_at:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_指数衍生指标_日期
+        columns: ["日期"]

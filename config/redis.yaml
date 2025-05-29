@@ -1,0 +1,72 @@
+# Redis配置
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+  password: ""
+  socket_timeout: 5  # 秒
+  socket_connect_timeout: 5  # 秒
+  retry_on_timeout: true
+  max_connections: 100
+
+# 缓存策略配置
+cache:
+  # 实时行情数据缓存
+  实时行情:
+    key_prefix: "行情:"
+    expire: 60  # 秒
+    structure: "hash"  # 股票代码 -> 行情数据
+  
+  # 热门股票列表缓存
+  热门股票:
+    key_prefix: "热门:"
+    expire: 3600  # 秒
+    structure: "zset"  # 有序集合，按热度排序
+  
+  # 技术指标计算结果缓存
+  技术指标:
+    key_prefix: "指标:"
+    expire: 86400  # 秒，1天
+    structure: "hash"  # 股票代码:指标 -> 计算结果
+  
+  # 用户查询历史
+  用户查询:
+    key_prefix: "用户:"
+    expire: 604800  # 秒，7天
+    structure: "list"  # 列表，最近查询
+    
+  # 股票历史数据缓存
+  股票历史数据:
+    key_prefix: "历史数据:"
+    expire: 604800  # 秒，7天
+    structure: "hash"  # 股票代码:复权类型:日期范围 -> 历史数据
+
+# 分布式锁配置
+locks:
+  data_update:
+    key_prefix: "lock:data_update:"
+    expire: 300  # 秒
+  
+  strategy_execution:
+    key_prefix: "lock:strategy:"
+    expire: 600  # 秒
+
+# 消息队列配置
+queues:
+  data_fetch:
+    key: "queue:data_fetch"
+    structure: "list"
+  
+  analysis_tasks:
+    key: "queue:analysis"
+    structure: "list"
+  
+  notification:
+    key: "queue:notification"
+    structure: "list"
+
+# 发布订阅频道
+channels:
+  market_update: "channel:market_update"
+  strategy_signal: "channel:strategy_signal"
+  system_notification: "channel:system_notification"

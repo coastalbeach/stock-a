@@ -1,0 +1,87 @@
+{
+  "name": "海龟交易策略",
+  "description": "经典的海龟交易系统，基于价格突破和ATR波动率指标，包含入场、加仓、止损和离场规则",
+  "required_data": ["日期", "股票代码", "开盘", "收盘", "最高", "最低", "成交量", "ATR14", "ATR20", "HIGHEST_20", "HIGHEST_55", "LOWEST_10", "LOWEST_20"],
+  "parameters": {
+    "入场周期": {
+      "type": "integer",
+      "default": 20,
+      "min": 10,
+      "max": 55,
+      "description": "入场信号的突破周期（原始海龟系统使用20天和55天）"
+    },
+    "离场周期": {
+      "type": "integer",
+      "default": 10,
+      "min": 5,
+      "max": 20,
+      "description": "离场信号的突破周期（原始海龟系统使用10天）"
+    },
+    "ATR周期": {
+      "type": "integer",
+      "default": 14,
+      "min": 10,
+      "max": 30,
+      "description": "计算真实波动幅度均值的周期"
+    },
+    "止损倍数": {
+      "type": "number",
+      "default": 2.0,
+      "min": 1.0,
+      "max": 4.0,
+      "description": "止损点位为ATR的倍数"
+    },
+    "加仓间隔": {
+      "type": "number",
+      "default": 0.5,
+      "min": 0.3,
+      "max": 1.0,
+      "description": "加仓的价格间隔，以ATR的倍数表示"
+    },
+    "最大加仓次数": {
+      "type": "integer",
+      "default": 4,
+      "min": 1,
+      "max": 6,
+      "description": "最大允许的加仓次数"
+    }
+  },
+  "buy_conditions": [
+    {
+      "condition": "收盘 > HIGHEST_20.shift(1) and ATR14 > 0",
+      "description": "系统1：价格突破20日最高价（入场信号）",
+      "strength": 1.0
+    },
+    {
+      "condition": "收盘 > HIGHEST_55.shift(1) and ATR20 > 0",
+      "description": "系统2：价格突破55日最高价（入场信号）",
+      "strength": 0.8
+    },
+    {
+      "condition": "最高 > 收盘.shift(1) + ATR14.shift(1) * params['加仓间隔'] and index > 0",
+      "description": "价格上涨超过前一个加仓点位（做多加仓信号）",
+      "strength": 0.5
+    }
+  ],
+  "sell_conditions": [
+    {
+      "condition": "收盘 < LOWEST_10.shift(1)",
+      "description": "系统1：价格跌破10日最低价（离场信号）",
+      "strength": 1.0
+    },
+    {
+      "condition": "收盘 < LOWEST_20.shift(1)",
+      "description": "系统2：价格跌破20日最低价（离场信号）",
+      "strength": 0.8
+    },
+    {
+      "condition": "收盘 < 买入价 - ATR14.shift(1) * params['止损倍数']",
+      "description": "止损：价格低于入场价减去N个ATR",
+      "strength": 1.0
+    }
+  ],
+  "position_sizing": {
+    "description": "基于ATR的头寸规模计算",
+    "formula": "账户资金 * 0.01 / (ATR14 * params['止损倍数'])"
+  }
+}

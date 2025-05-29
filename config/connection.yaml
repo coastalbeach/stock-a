@@ -1,0 +1,30 @@
+# PostgreSQL数据库连接配置
+postgresql:
+  host: localhost
+  port: 5432
+  database: stocka
+  user: postgres
+  password: "111222"
+  max_connections: 20
+  connect_timeout: 10
+  application_name: "stock-a"
+  
+# 连接池配置
+connection_pool:
+  min_connections: 5
+  max_connections: 50
+  max_idle_time: 300  # 秒
+  max_shared: 10
+  max_lifetime: 1800  # 秒
+  
+# 重试策略
+retry:
+  max_attempts: 3
+  retry_interval: 2  # 秒
+  backoff_factor: 2  # 指数退避因子
+  
+# 日志配置
+logging:
+  log_queries: false
+  log_slow_queries: true
+  slow_query_threshold: 1.0  # 秒

@@ -1,0 +1,52 @@
+{
+  "name": "MACD策略",
+  "description": "基于MACD指标的交易策略，MACD金叉买入，死叉卖出",
+  "required_data": ["日期", "股票代码", "收盘"],
+  "parameters": {
+    "快线周期": {
+      "type": "integer",
+      "default": 12,
+      "min": 3,
+      "max": 50,
+      "description": "MACD快线EMA周期"
+    },
+    "慢线周期": {
+      "type": "integer",
+      "default": 26,
+      "min": 10,
+      "max": 100,
+      "description": "MACD慢线EMA周期"
+    },
+    "信号周期": {
+      "type": "integer",
+      "default": 9,
+      "min": 3,
+      "max": 30,
+      "description": "MACD信号线周期"
+    }
+  },
+  "buy_conditions": [
+    {
+      "condition": "MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[0] > MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[1] and MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[0].shift(1) <= MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[1].shift(1)",
+      "description": "MACD金叉（MACD线上穿信号线）",
+      "strength": 1.0
+    },
+    {
+      "condition": "MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[2] > 0 and MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[2].shift(1) <= 0",
+      "description": "MACD柱状图由负转正",
+      "strength": 0.8
+    }
+  ],
+  "sell_conditions": [
+    {
+      "condition": "MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[0] < MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[1] and MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[0].shift(1) >= MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[1].shift(1)",
+      "description": "MACD死叉（MACD线下穿信号线）",
+      "strength": 1.0
+    },
+    {
+      "condition": "MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[2] < 0 and MACD(收盘, params['快线周期'], params['慢线周期'], params['信号周期'])[2].shift(1) >= 0",
+      "description": "MACD柱状图由正转负",
+      "strength": 0.8
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+# 应用程序全局配置
+application:
+  name: "A股量化分析系统"
+  version: "0.1.0"
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_file: "logs/app.log"
+  data_dir: "data/"
+  temp_dir: "temp/"
+  max_threads: 8
+  language: "zh_CN"
+
+# 数据获取配置
+data_fetcher:
+  # AKShare配置
+  akshare:
+    timeout: 30  # 秒
+    retry: 3
+    retry_interval: 5  # 秒
+  
+  # 数据更新频率（秒）
+  update_interval:
+    股票基本信息: 86400      # 1天
+    日线行情: 3600       # 1小时
+    分钟行情: 300       # 5分钟
+    实时行情: 60     # 1分钟
+    财务数据: 604800  # 7天
+    指数数据: 3600        # 1小时
+
+# 分析引擎配置
+analyzer:
+  # 技术指标配置
+  technical_indicators:
+    default_periods: [5, 10, 20, 30, 60, 120, 250]
+    macd:
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+    rsi:
+      periods: [6, 14, 24]
+    bollinger_bands:
+      period: 20
+      std_dev: 2
+  
+  # 基本面分析配置
+  fundamental_analysis:
+    pe_threshold: 30
+    pb_threshold: 3
+    roe_threshold: 10  # %
+
+# 策略配置
+strategy:
+  # 回测配置
+  backtest:
+    default_start_date: "2005-01-04"
+    default_end_date: "current"
+    commission_rate: 0.0003  # 手续费率
+    slippage: 0.002         # 滑点
+    initial_capital: 1000000 # 初始资金
+  
+  # 策略参数
+  parameters:
+    momentum:
+      lookback_period: 20
+      holding_period: 5
+    value:
+      pe_weight: 0.4
+      pb_weight: 0.3
+      dividend_weight: 0.3
+
+# UI配置
+ui:
+  theme: "light"  # light, dark
+  chart:
+    default_period: "1y"  # 1d, 1w, 1m, 3m, 6m, 1y, 3y, 5y
+    default_type: "candle"  # line, candle, ohlc
+    colors:
+      up: "#ff4d4f"
+      down: "#52c41a"
+      equal: "#d9d9d9"
+  
+  # 数据表格配置
+  table:
+    page_size: 50
+    date_format: "YYYY-MM-DD"
+    time_format: "HH:mm:ss"
+
+# 性能配置
+performance:
+  cache_size: 512  # MB
+  batch_size: 1000  # 批处理大小
+  parallel_jobs: 4  # 并行任务数

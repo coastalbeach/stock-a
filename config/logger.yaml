@@ -1,0 +1,84 @@
+# 日志配置文件
+
+# 默认日志级别
+default_level: INFO
+
+# 是否输出到控制台
+console_output: true
+
+# 是否输出到文件
+file_output: true
+
+# 单个日志文件最大字节数（10MB）
+max_bytes: 10485760
+
+# 备份文件数量
+backup_count: 10
+
+# 日志格式
+format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# 日期格式
+date_format: "%Y-%m-%d %H:%M:%S"
+
+# 性能监控配置
+performance_monitoring:
+  # 是否启用性能监控
+  enabled: true
+  # 是否记录内存使用情况
+  memory_tracking: true
+  # 是否记录CPU使用情况
+  cpu_tracking: true
+  # 性能数据采样间隔（秒）
+  sampling_interval: 60
+
+# 运行状态跟踪配置
+run_status_tracking:
+  # 是否启用运行状态跟踪
+  enabled: true
+  # 是否记录程序启动和关闭
+  lifecycle_events: true
+  # 是否记录关键操作点
+  checkpoint_events: true
+
+# 模块特定配置
+modules:
+  # 股票历史行情数据模块
+  stock_historical:
+    level: INFO
+    file: stock_historical.log
+  
+  # 股票财务数据模块
+  stock_financial:
+    level: INFO
+    file: stock_financial.log
+  
+  # 指数行情数据模块
+  index_quote:
+    level: INFO
+    file: index_quote.log
+  
+  # 市场数据模块
+  market_data:
+    level: INFO
+    file: market_data.log
+  
+  # 数据存储模块
+  data_storage:
+    level: INFO
+    file: data_storage.log
+  
+  # UI模块
+  ui:
+    level: INFO
+    file: ui.log
+    
+  # 性能监控模块
+  performance:
+    level: INFO
+    file: performance.log
+    
+  # 运行状态跟踪模块
+  run_status:
+    level: INFO
+    file: run_status.log

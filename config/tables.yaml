@@ -1,0 +1,681 @@
+# 数据库表结构定义
+
+tables:
+  # 龙虎榜详情
+  龙虎榜详情:
+    name: 龙虎榜详情
+    description: "A股股票龙虎榜交易详情数据"
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      交易日期:
+        type: DATE
+        primary_key: true
+        description: "交易日期"
+      股票名称:
+        type: VARCHAR(50)
+        description: "股票名称"
+      收盘价:
+        type: FLOAT
+        description: "收盘价"
+      涨跌幅:
+        type: FLOAT
+        description: "涨跌幅（%）"
+      上榜原因:
+        type: VARCHAR(100)
+        description: "上榜原因"
+      买入金额:
+        type: FLOAT
+        description: "买入金额（万元）"
+      卖出金额:
+        type: FLOAT
+        description: "卖出金额（万元）"
+      净买入:
+        type: FLOAT
+        description: "净买入（万元）"
+      买入营业部数:
+        type: INTEGER
+        description: "买入营业部数量"
+      卖出营业部数:
+        type: INTEGER
+        description: "卖出营业部数量"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_dragon_tiger_股票代码
+        columns: ["股票代码"]
+      - name: idx_dragon_tiger_交易日期
+        columns: ["交易日期"]
+
+  # 个股上榜统计
+  个股上榜统计:
+    name: 个股上榜统计
+    description: "A股股票龙虎榜上榜统计数据"
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      股票名称:
+        type: VARCHAR(50)
+        description: "股票名称"
+      上榜次数:
+        type: INTEGER
+        description: "上榜次数"
+      累计买入额:
+        type: FLOAT
+        description: "累计买入额（万元）"
+      累计卖出额:
+        type: FLOAT
+        description: "累计卖出额（万元）"
+      累计净买入:
+        type: FLOAT
+        description: "累计净买入（万元）"
+      最近上榜日期:
+        type: DATE
+        description: "最近上榜日期"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_listing_stats_股票代码
+        columns: ["股票代码"]
+      - name: idx_listing_stats_上榜次数
+        columns: ["上榜次数"]
+
+  # 资产负债表
+  资产负债表:
+    name: 资产负债表
+    description: "A股股票资产负债表数据"
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      报告期:
+        type: DATE
+        primary_key: true
+        description: "报告期日期"
+      报表类型:
+        type: VARCHAR(20)
+        primary_key: true
+        description: "报表类型"
+      货币资金:
+        type: FLOAT
+        description: "货币资金"
+      流动资产合计:
+        type: FLOAT
+        description: "流动资产合计"
+      资产总计:
+        type: FLOAT
+        description: "资产总计"
+      负债合计:
+        type: FLOAT
+        description: "负债合计"
+      股东权益合计:
+        type: FLOAT
+        description: "股东权益合计"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_balance_股票代码
+        columns: ["股票代码"]
+      - name: idx_balance_报告期
+        columns: ["报告期"]
+
+  # 利润表
+  利润表:
+    name: 利润表
+    description: "A股股票利润表数据"
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      报告期:
+        type: DATE
+        primary_key: true
+        description: "报告期日期"
+      报表类型:
+        type: VARCHAR(20)
+        primary_key: true
+        description: "报表类型"
+      营业总收入:
+        type: FLOAT
+        description: "营业总收入"
+      营业收入:
+        type: FLOAT
+        description: "营业收入"
+      净利润:
+        type: FLOAT
+        description: "净利润"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_profit_股票代码
+        columns: ["股票代码"]
+      - name: idx_profit_报告期
+        columns: ["报告期"]
+
+  # 现金流量表
+  现金流量表:
+    name: 现金流量表
+    description: "A股股票现金流量表数据"
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      报告期:
+        type: DATE
+        primary_key: true
+        description: "报告期日期"
+      报表类型:
+        type: VARCHAR(20)
+        primary_key: true
+        description: "报表类型"
+      经营活动产生的现金流量净额:
+        type: FLOAT
+        description: "经营活动产生的现金流量净额"
+      投资活动产生的现金流量净额:
+        type: FLOAT
+        description: "投资活动产生的现金流量净额"
+      筹资活动产生的现金流量净额:
+        type: FLOAT
+        description: "筹资活动产生的现金流量净额"
+      现金及现金等价物净增加额:
+        type: FLOAT
+        description: "现金及现金等价物净增加额"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_cash_flow_股票代码
+        columns: ["股票代码"]
+      - name: idx_cash_flow_报告期
+        columns: ["报告期"]
+
+  # 财务指标表
+  财务指标:
+    name: 财务指标
+    description: "A股股票财务指标数据"
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      报告期:
+        type: DATE
+        primary_key: true
+        description: "报告期日期"
+      指标类型:
+        type: VARCHAR(20)
+        primary_key: true
+        description: "指标类型，包括按报告期、按年度、按单季度"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_financial_indicator_股票代码
+        columns: ["股票代码"]
+      - name: idx_financial_indicator_报告期
+        columns: ["报告期"]
+  # 股票基本信息表
+  股票基本信息:
+    name: 股票基本信息
+    description: "A股股票基本信息表"
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      股票名称:
+        type: VARCHAR(50)
+        nullable: false
+        description: "股票名称"
+      市场:
+        type: VARCHAR(10)
+        description: "市场类型，包括沪A、深A、创业、科创、京A"
+      所属行业:
+        type: VARCHAR(50)
+        description: "所属行业"
+      市值等级:
+        type: VARCHAR(10)
+        description: "市值等级，分为微盘股、小盘股、中盘股、大盘股"
+      市盈率-动态:
+        type: FLOAT
+        description: "动态市盈率"
+      市净率:
+        type: FLOAT
+        description: "市净率"
+      总市值:
+        type: FLOAT
+        description: "总市值（元）"
+      流通市值:
+        type: FLOAT
+        description: "流通市值（元）"
+      60日均涨幅:
+        type: FLOAT
+        description: "60日均涨幅（%）"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_股票名称
+        columns: ["股票名称"]
+      - name: idx_所属行业
+        columns: ["所属行业"]
+      - name: idx_市值等级
+        columns: ["市值等级"]
+
+  # 股票后复权因子表
+  股票后复权因子:
+    name: 股票后复权因子
+    description: "A股股票历史后复权因子数据表"
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      日期:
+        type: DATE
+        primary_key: true
+        description: "因子对应的日期"
+      后复权因子:
+        type: FLOAT
+        nullable: false
+        description: "后复权因子值"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_factor_股票代码
+        columns: ["股票代码"]
+      - name: idx_factor_日期
+        columns: ["日期"]
+    
+  # 股票技术指标表
+  股票技术指标:
+    name: 股票技术指标
+    description: "A股股票技术指标数据表，包含各种常用技术指标"
+    partitioning:
+      type: HASH
+      column: 股票代码
+      partitions: 16  # 创建16个分区
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      日期:
+        type: DATE
+        primary_key: true
+        description: "交易日期"
+      SMA5:
+        type: FLOAT
+        description: "5日简单移动平均线"
+      SMA10:
+        type: FLOAT
+        description: "10日简单移动平均线"
+      SMA20:
+        type: FLOAT
+        description: "20日简单移动平均线"
+      SMA60:
+        type: FLOAT
+        description: "60日简单移动平均线"
+      EMA12:
+        type: FLOAT
+        description: "12日指数移动平均线"
+      EMA26:
+        type: FLOAT
+        description: "26日指数移动平均线"
+      DIF:
+        type: FLOAT
+        description: "MACD差离值"
+      DEA:
+        type: FLOAT
+        description: "MACD信号线"
+      MACD_hist:
+        type: FLOAT
+        description: "MACD柱状图"
+      RSI6:
+        type: FLOAT
+        description: "6日相对强弱指标"
+      RSI12:
+        type: FLOAT
+        description: "12日相对强弱指标"
+      RSI24:
+        type: FLOAT
+        description: "24日相对强弱指标"
+      BBANDS_UPPER:
+        type: FLOAT
+        description: "布林带上轨"
+      BBANDS_MIDDLE:
+        type: FLOAT
+        description: "布林带中轨"
+      BBANDS_LOWER:
+        type: FLOAT
+        description: "布林带下轨"
+      KDJ_K:
+        type: FLOAT
+        description: "KDJ指标K值"
+      KDJ_D:
+        type: FLOAT
+        description: "KDJ指标D值"
+      KDJ_J:
+        type: FLOAT
+        description: "KDJ指标J值"
+      VOL_MA5:
+        type: FLOAT
+        description: "5日成交量移动平均"
+      VOL_MA10:
+        type: FLOAT
+        description: "10日成交量移动平均"
+      WR14:
+        type: FLOAT
+        description: "14日威廉指标"
+      CCI14:
+        type: FLOAT
+        description: "14日顺势指标"
+      PDI14:
+        type: FLOAT
+        description: "14日正向动向指标"
+      MDI14:
+        type: FLOAT
+        description: "14日负向动向指标"
+      ADX14:
+        type: FLOAT
+        description: "14日平均方向指数"
+      ROC6:
+        type: FLOAT
+        description: "6日变动率指标"
+      ROC12:
+        type: FLOAT
+        description: "12日变动率指标"
+      BIAS6:
+        type: FLOAT
+        description: "6日乖离率"
+      BIAS12:
+        type: FLOAT
+        description: "12日乖离率"
+      BIAS24:
+        type: FLOAT
+        description: "24日乖离率"
+      OBV:
+        type: FLOAT
+        description: "能量潮指标"
+      OBV_MA5:
+        type: FLOAT
+        description: "5日OBV移动平均"
+      OBV_MA10:
+        type: FLOAT
+        description: "10日OBV移动平均"
+    indexes:
+      - name: idx_股票技术指标_日期
+        columns: ["日期"]
+
+  # 股票历史行情数据表
+  日线行情:
+    name: 日线行情
+    description: "A股股票日线行情数据表，按股票代码HASH分区"
+    partitioning:
+      type: HASH
+      column: 股票代码
+      partitions: 16  # 创建16个分区
+    columns:
+      股票代码:
+        type: VARCHAR(10)
+        primary_key: true
+        description: "股票代码，不含市场标识"
+      日期:
+        type: DATE
+        primary_key: true
+        description: "交易日期"
+      开盘:
+        type: FLOAT
+        description: "开盘价"
+      收盘:
+        type: FLOAT
+        description: "收盘价"
+      最高:
+        type: FLOAT
+        description: "最高价"
+      最低:
+        type: FLOAT
+        description: "最低价"
+      成交量:
+        type: BIGINT
+        description: "成交量（手）"
+      成交额:
+        type: FLOAT
+        description: "成交额（元）"
+      振幅:
+        type: FLOAT
+        description: "振幅（%）"
+      涨跌幅:
+        type: FLOAT
+        description: "涨跌幅（%）"
+      涨跌额:
+        type: FLOAT
+        description: "涨跌额（元）"
+      换手率:
+        type: FLOAT
+        description: "换手率（%）"
+      复权类型:
+        type: VARCHAR(10)
+        description: "复权类型：不复权、前复权、后复权"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_交易日期
+        columns: ["交易日期"]
+      - name: idx_股票代码_日期
+        columns: ["股票代码", "交易日期"]
+      - name: idx_复权类型
+        columns: ["复权类型"]
+
+  # 概念板块表
+  概念板块:
+    name: 概念板块
+    description: "A股概念板块信息表"
+    columns:
+      概念代码:
+        type: VARCHAR(20)
+        primary_key: true
+        description: "概念代码"
+      概念名称:
+        type: VARCHAR(50)
+        description: "概念名称"
+      成分股数量:
+        type: INTEGER
+        description: "成分股数量"
+      平均市盈率:
+        type: FLOAT
+        description: "平均市盈率"
+      平均市净率:
+        type: FLOAT
+        description: "平均市净率"
+      总市值:
+        type: FLOAT
+        description: "总市值（亿元）"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_概念名称
+        columns: ["概念名称"]
+
+  # 行业板块表
+  行业板块:
+    name: 行业板块
+    description: "A股行业板块信息表"
+    columns:
+      行业代码:
+        type: VARCHAR(20)
+        primary_key: true
+        description: "行业代码"
+      行业名称:
+        type: VARCHAR(50)
+        description: "行业名称"
+      成分股数量:
+        type: INTEGER
+        description: "成分股数量"
+      平均市盈率:
+        type: FLOAT
+        description: "平均市盈率"
+      平均市净率:
+        type: FLOAT
+        description: "平均市净率"
+      总市值:
+        type: FLOAT
+        description: "总市值（亿元）"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_行业名称
+        columns: ["行业名称"]
+
+  # 行业历史行情表
+  行业历史行情:
+    name: 行业历史行情
+    description: "A股行业指数历史行情数据表"
+    columns:
+      行业代码:
+        type: VARCHAR(20)
+        primary_key: true
+        description: "行业代码"
+      日期:
+        type: DATE
+        primary_key: true
+        description: "交易日期"
+      行业名称:
+        type: VARCHAR(50)
+        description: "行业名称"
+      开盘:
+        type: FLOAT
+        description: "开盘点位"
+      收盘:
+        type: FLOAT
+        description: "收盘点位"
+      最高:
+        type: FLOAT
+        description: "最高点位"
+      最低:
+        type: FLOAT
+        description: "最低点位"
+      成交量:
+        type: BIGINT
+        description: "成交量（手）"
+      成交额:
+        type: FLOAT
+        description: "成交额（亿元）"
+      涨跌幅:
+        type: FLOAT
+        description: "涨跌幅（%）"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_行业历史行情_日期
+        columns: ["日期"]
+
+  # 指数历史行情表
+  指数历史行情:
+    name: 指数历史行情
+    description: "A股指数历史行情数据表"
+    columns:
+      指数代码:
+        type: VARCHAR(20)
+        primary_key: true
+        description: "指数代码"
+      日期:
+        type: DATE
+        primary_key: true
+        description: "交易日期"
+      指数名称:
+        type: VARCHAR(50)
+        description: "指数名称"
+      开盘:
+        type: FLOAT
+        description: "开盘点位"
+      收盘:
+        type: FLOAT
+        description: "收盘点位"
+      最高:
+        type: FLOAT
+        description: "最高点位"
+      最低:
+        type: FLOAT
+        description: "最低点位"
+      成交量:
+        type: BIGINT
+        description: "成交量（手）"
+      成交额:
+        type: FLOAT
+        description: "成交额（亿元）"
+      涨跌幅:
+        type: FLOAT
+        description: "涨跌幅（%）"
+      更新时间:
+        type: TIMESTAMP
+        default: CURRENT_TIMESTAMP
+        description: "数据更新时间"
+    indexes:
+      - name: idx_指数历史行情_日期
+        columns: ["日期"]
+        
+    partition_sql: |
+      CREATE TABLE "日线行情" (
+        "股票代码" VARCHAR(10) NOT NULL,
+        "交易日期" DATE NOT NULL,
+        "开盘" FLOAT,
+        "收盘" FLOAT,
+        "最高" FLOAT,
+        "最低" FLOAT,
+        "成交量" BIGINT,
+        "成交额" FLOAT,
+        "振幅" FLOAT,
+        "涨跌幅" FLOAT,
+        "涨跌额" FLOAT,
+        "换手率" FLOAT,
+        "复权类型" VARCHAR(10) NOT NULL,
+        "更新时间" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY ("股票代码", "交易日期", "复权类型")
+      ) PARTITION BY HASH ("股票代码");
+      
+      -- 创建16个分区
+      CREATE TABLE 日线行情_p0 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 0);
+      CREATE TABLE 日线行情_p1 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 1);
+      CREATE TABLE 日线行情_p2 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 2);
+      CREATE TABLE 日线行情_p3 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 3);
+      CREATE TABLE 日线行情_p4 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 4);
+      CREATE TABLE 日线行情_p5 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 5);
+      CREATE TABLE 日线行情_p6 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 6);
+      CREATE TABLE 日线行情_p7 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 7);
+      CREATE TABLE 日线行情_p8 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 8);
+      CREATE TABLE 日线行情_p9 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 9);
+      CREATE TABLE 日线行情_p10 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 10);
+      CREATE TABLE 日线行情_p11 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 11);
+      CREATE TABLE 日线行情_p12 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 12);
+      CREATE TABLE 日线行情_p13 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 13);
+      CREATE TABLE 日线行情_p14 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 14);
+      CREATE TABLE 日线行情_p15 PARTITION OF "日线行情" FOR VALUES WITH (MODULUS 16, REMAINDER 15);

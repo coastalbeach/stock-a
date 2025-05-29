@@ -1,0 +1,77 @@
+# PostgreSQL触发器测试配置文件
+# 定义测试用例和预期结果
+
+# 测试用例配置
+test_cases:
+  # 测试除权除息信息触发器
+  - name: "除权除息信息触发器测试"
+    description: "测试当除权除息信息表发生变化时，是否正确触发update_hfq_factor_on_dividend_change函数"
+    setup:
+      - type: "insert"
+        table: "除权除息信息"
+        data:
+          "股票代码": "000001"
+          "公告日期": "2023-01-01"
+          "除权除息日": "2023-01-10"
+          "股权登记日": "2023-01-09"
+          "方案进度": "实施"
+          "每股送股比例": 0.0
+          "每股转增比例": 0.0
+          "每股派息金额_税前": 0.5
+    verification:
+      - type: "check_notice"
+        expected_message: "除权除息信息表发生变动，股票代码: 000001，操作: INSERT"
+      - type: "check_function_called"
+        function_name: "update_hfq_factor_on_dividend_change"
+
+  # 测试复权因子表触发器
+  - name: "复权因子表触发器测试"
+    description: "测试当复权因子表发生变化时，是否正确触发calculate_and_insert_hfq_price函数"
+    setup:
+      - type: "insert"
+        table: "复权因子表"
+        data:
+          "股票代码": "000001"
+          "日期": "2023-01-11"
+          "前复权因子": 1.0
+          "后复权因子": 1.0
+    verification:
+      - type: "check_function_called"
+        function_name: "calculate_and_insert_hfq_price"
+
+  # 测试不复权行情数据触发器
+  - name: "不复权行情数据触发器测试"
+    description: "测试当不复权行情数据表发生变化时，是否正确触发calculate_and_update_periodic_data函数"
+    setup:
+      - type: "insert"
+        table: "股票历史行情_不复权"
+        data:
+          "股票代码": "000001"
+          "日期": "2023-01-10"
+          "开盘": 10.0
+          "最高": 11.0
+          "最低": 9.5
+          "收盘": 10.5
+          "成交量": 1000000
+          "成交额": 10500000.0
+    verification:
+      - type: "check_function_called"
+        function_name: "calculate_and_update_periodic_data"
+
+# 测试数据库配置
+database:
+  # 是否在测试后保留测试数据库（默认为false）
+  keep_after_test: false
+  # 测试数据库前缀（将自动添加随机后缀）
+  name_prefix: "test_triggers"
+  # 测试超时时间（秒）
+  timeout: 30
+
+# 日志配置
+logging:
+  # 日志级别：DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  # 是否将日志输出到文件
+  file_output: true
+  # 日志文件路径（相对于项目根目录）
+  file_path: "logs/trigger_test.log"

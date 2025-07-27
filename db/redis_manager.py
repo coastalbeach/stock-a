@@ -155,6 +155,17 @@ class RedisManager:
             print(f"删除键失败: {e}")
             return False
     
+    def delete(self, key):
+        """删除键（别名方法）
+        
+        Args:
+            key (str): 键名
+            
+        Returns:
+            bool: 删除是否成功
+        """
+        return self.delete_key(key)
+    
     def key_exists(self, key):
         """检查键是否存在
         

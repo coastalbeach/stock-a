@@ -10,6 +10,5 @@
 from db.postgresql_manager import PostgreSQLManager
 from db.enhanced_postgresql_manager import EnhancedPostgreSQLManager
 from db.redis_manager import RedisManager
-from db.table_data_reader import TableDataReader
 
-__all__ = ['PostgreSQLManager', 'EnhancedPostgreSQLManager', 'RedisManager', 'TableDataReader']
+__all__ = ['PostgreSQLManager', 'EnhancedPostgreSQLManager', 'RedisManager']

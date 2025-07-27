@@ -1,0 +1,169 @@
+# 批量股票历史数据获取配置文件
+
+# 基本配置
+basic:
+  # 数据获取起始日期（YYYYMMDD格式）
+  start_date: "20050104"
+  
+  # 是否启用断点续传
+  enable_checkpoint: true
+  
+  # 断点文件保存路径（相对于项目根目录）
+  checkpoint_file: "data/batch_checkpoint.json"
+  
+  # 日志级别 (DEBUG, INFO, WARNING, ERROR)
+  log_level: "INFO"
+
+# 并发配置
+concurrency:
+  # 最大工作线程数
+  max_workers: 8
+  
+  # 每批处理的股票数量
+  batch_size: 50
+  
+  # API请求间隔（秒）
+  request_interval: 0.1
+  
+  # 线程池超时时间（秒）
+  thread_timeout: 300
+
+# 重试策略
+retry:
+  # 最大重试次数
+  max_attempts: 3
+  
+  # 重试间隔基数（秒）
+  base_interval: 2
+  
+  # 指数退避因子
+  backoff_factor: 2
+  
+  # 最大重试间隔（秒）
+  max_interval: 30
+
+# 数据表配置
+tables:
+  # 不复权数据表名
+  no_adjust_table: "股票历史行情_不复权"
+  
+  # 后复权数据表名
+  hfq_table: "股票历史行情_后复权"
+  
+  # 主键列
+  primary_keys:
+    - "股票代码"
+    - "日期"
+
+# 数据过滤配置
+filters:
+  # 是否跳过ST股票
+  skip_st_stocks: false
+  
+  # 是否跳过退市股票
+  skip_delisted_stocks: false
+  
+  # 最小市值过滤（亿元，0表示不过滤）
+  min_market_cap: 0
+  
+  # 股票代码前缀过滤（为空表示不过滤）
+  stock_code_prefixes: []
+    # 示例：只获取沪市主板股票
+    # - "600"
+    # - "601"
+    # - "603"
+    # - "605"
+
+# 性能优化配置
+performance:
+  # 是否启用Redis缓存
+  enable_redis_cache: true
+  
+  # 缓存过期时间（秒）
+  cache_expire_time: 3600
+  
+  # 是否启用数据库连接池
+  enable_db_pool: true
+  
+  # 数据库连接池大小
+  db_pool_size: 10
+  
+  # 批量插入大小
+  bulk_insert_size: 1000
+
+# 监控配置
+monitoring:
+  # 是否启用进度条
+  enable_progress_bar: true
+  
+  # 进度报告间隔（处理的股票数）
+  progress_report_interval: 100
+  
+  # 是否保存详细日志
+  save_detailed_logs: true
+  
+  # 是否发送完成通知（需要配置通知方式）
+  send_completion_notification: false
+
+# 错误处理配置
+error_handling:
+  # 是否在遇到错误时继续处理其他股票
+  continue_on_error: true
+  
+  # 是否保存错误详情到文件
+  save_error_details: true
+  
+  # 错误日志文件路径
+  error_log_file: "logs/batch_errors.log"
+  
+  # 最大连续失败次数（超过后暂停处理）
+  max_consecutive_failures: 50
+
+# 数据验证配置
+validation:
+  # 是否启用数据完整性检查
+  enable_data_validation: true
+  
+  # 是否检查数据重复
+  check_duplicates: true
+  
+  # 是否检查数据格式
+  check_data_format: true
+  
+  # 允许的最大数据缺失率（百分比）
+  max_missing_data_rate: 10
+
+# 调度配置
+scheduling:
+  # 是否启用定时任务
+  enable_scheduled_run: false
+  
+  # 定时运行时间（24小时制，格式：HH:MM）
+  scheduled_time: "06:00"
+  
+  # 定时运行间隔（天）
+  run_interval_days: 1
+  
+  # 是否只在交易日运行
+  trading_days_only: true
+
+# 通知配置（可选）
+notification:
+  # 通知方式：email, webhook, none
+  method: "none"
+  
+  # 邮件配置（当method为email时）
+  email:
+    smtp_server: "smtp.example.com"
+    smtp_port: 587
+    username: "your_email@example.com"
+    password: "your_password"
+    to_addresses:
+      - "admin@example.com"
+  
+  # Webhook配置（当method为webhook时）
+  webhook:
+    url: "https://your-webhook-url.com/notify"
+    headers:
+      Content-Type: "application/json"
+    timeout: 30

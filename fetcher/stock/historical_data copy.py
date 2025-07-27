@@ -67,11 +67,55 @@ class StockHistoricalData:
         self.last_run_time = None  # 上次运行时间
         self.last_run_in_trading_time = False  # 上次是否在交易时间运行
         
+        # 配置网络请求参数
+        self._setup_network_config()
+        
         # 检查是否为交易日和交易时间
         self._check_trading_status()
         
         # 获取上次运行信息
         self._get_last_run_info()
+    
+    def _setup_network_config(self):
+        """配置网络请求参数"""
+        try:
+            import requests
+            from requests.adapters import HTTPAdapter
+            from urllib3.util.retry import Retry
+            
+            # 创建重试策略
+            retry_strategy = Retry(
+                total=3,
+                status_forcelist=[429, 500, 502, 503, 504],
+                method_whitelist=["HEAD", "GET", "OPTIONS"],
+                backoff_factor=1
+            )
+            
+            # 创建适配器
+            adapter = HTTPAdapter(max_retries=retry_strategy)
+            
+            # 创建会话
+            self.session = requests.Session()
+            self.session.mount("http://", adapter)
+            self.session.mount("https://", adapter)
+            
+            # 设置超时时间
+            self.session.timeout = 30
+            
+            # 设置请求头，模拟浏览器
+            self.session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            })
+            
+            self.logger.info("网络请求配置完成")
+        except Exception as e:
+            self.logger.warning(f"配置网络请求参数失败: {e}，将使用默认配置")
+            self.session = None
         
     def _init_logger(self):
         """初始化日志记录器
@@ -125,10 +169,45 @@ class StockHistoricalData:
                 
                 # 尝试获取指数数据
                 try:
-                    self.logger.info(f"获取上证指数，起始日期: {start_date}, 结束日期: {self.today}")
-                    index_data = ak.index_zh_a_hist(symbol="000001", period="daily", 
-                                                  start_date=start_date, 
-                                                  end_date=self.today)
+                    import requests
+                    from requests.exceptions import ConnectionError, Timeout, RequestException
+                    import random
+                    
+                    # 定义重试参数
+                    max_retries = 3
+                    base_delay = 2
+                    max_delay = 30
+                    
+                    index_data = None
+                    for retry in range(max_retries):
+                        try:
+                            if retry > 0:
+                                delay = min(base_delay * (2 ** retry) + random.uniform(0, 1), max_delay)
+                                self.logger.info(f"获取上证指数第{retry+1}次重试，延时{delay:.2f}秒")
+                                time.sleep(delay)
+                            
+                            self.logger.info(f"获取上证指数，起始日期: {start_date}, 结束日期: {self.today}")
+                            index_data = ak.index_zh_a_hist(symbol="000001", period="daily", 
+                                                          start_date=start_date, 
+                                                          end_date=self.today)
+                            if index_data is not None and not index_data.empty:
+                                break
+                        except (ConnectionError, Timeout, RequestException) as e:
+                            if "Connection aborted" in str(e) or "Remote end closed connection" in str(e):
+                                self.logger.warning(f"获取上证指数遇到连接问题: {e}，第{retry+1}/{max_retries}次重试")
+                                if retry == max_retries - 1:
+                                    self.logger.error(f"获取上证指数重试{max_retries}次后仍然失败")
+                                continue
+                            else:
+                                self.logger.warning(f"获取上证指数遇到网络错误: {e}，第{retry+1}/{max_retries}次重试")
+                                if retry == max_retries - 1:
+                                    self.logger.error(f"获取上证指数重试{max_retries}次后仍然失败")
+                                continue
+                        except Exception as e:
+                            self.logger.warning(f"获取上证指数异常: {e}")
+                            if retry == max_retries - 1:
+                                break
+                            continue
                     
                     if not index_data.empty:
                         # 获取最后一个交易日
@@ -446,89 +525,124 @@ class StockHistoricalData:
         Returns:
             pandas.DataFrame: 历史行情数据
         """
-        try:
-            # 根据股票代码判断市场
-            market = self._get_stock_market(stock_code)
-            
-            # 尝试使用stock_zh_a_hist接口获取数据（东财）
-            df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=start_date, end_date=end_date, adjust=adjust)
-            
-            if df is not None and not df.empty:
-                return df
-            
-            # 如果失败，尝试使用stock_zh_a_daily接口（新浪）
-            full_code = f"{market}{stock_code}"
-            df = ak.stock_zh_a_daily(symbol=full_code, start_date=start_date, end_date=end_date, adjust=adjust)
-            
-            if df is not None and not df.empty:
-                # 转换列名以匹配stock_zh_a_hist的输出
-                df.rename(columns={
-                    "date": "日期",
-                    "open": "开盘",
-                    "high": "最高",
-                    "low": "最低",
-                    "close": "收盘",
-                    "volume": "成交量",
-                    "amount": "成交额",
-                    "turnover": "换手率"
-                }, inplace=True)
-                
-                # 新浪接口的成交量单位是股，需要转换为手（除以100）
-                if "成交量" in df.columns:
-                    df["成交量"] = df["成交量"].apply(lambda x: x / 100 if pd.notna(x) else x)
-                
-                # 添加缺失的列
-                if "振幅" not in df.columns:
-                    df["振幅"] = ((df["最高"] - df["最低"]) / df["收盘"].shift(1)) * 100
-                if "涨跌幅" not in df.columns:
-                    df["涨跌幅"] = ((df["收盘"] - df["收盘"].shift(1)) / df["收盘"].shift(1)) * 100
-                if "涨跌额" not in df.columns:
-                    df["涨跌额"] = df["收盘"] - df["收盘"].shift(1)
-                
-                # 添加股票代码列
-                df["股票代码"] = stock_code
-                
-                return df
-            
-            # 如果前两个接口都失败，尝试使用腾讯接口
-            full_code = f"{market}{stock_code}"
-            df = ak.stock_zh_a_hist_tx(symbol=full_code, start_date=start_date, end_date=end_date, adjust=adjust)
-            
-            if df is not None and not df.empty:
-                # 转换列名以匹配stock_zh_a_hist的输出
-                df.rename(columns={
-                    "date": "日期",
-                    "open": "开盘",
-                    "close": "收盘",
-                    "high": "最高",
-                    "low": "最低",
-                    "amount": "成交量"  # 腾讯接口的amount实际是成交量（手）
-                }, inplace=True)
-                
-                # 添加缺失的列
-                if "成交额" not in df.columns:
-                    # 估算成交额（成交量*收盘价*100）作为近似值
-                    df["成交额"] = df["成交量"] * df["收盘"] * 100
-                
-                if "振幅" not in df.columns:
-                    df["振幅"] = ((df["最高"] - df["最低"]) / df["收盘"].shift(1)) * 100
-                if "涨跌幅" not in df.columns:
-                    df["涨跌幅"] = ((df["收盘"] - df["收盘"].shift(1)) / df["收盘"].shift(1)) * 100
-                if "涨跌额" not in df.columns:
-                    df["涨跌额"] = df["收盘"] - df["收盘"].shift(1)
-                if "换手率" not in df.columns:
-                    df["换手率"] = np.nan  # 腾讯接口没有换手率数据
-                
-                # 添加股票代码列
-                df["股票代码"] = stock_code
-                
-                return df
-            
-            # 所有接口都失败
-            return None
-        except Exception as e:
-            # 只在debug级别记录异常信息，减少日志输出
-            return None
+        import requests
+        from requests.exceptions import ConnectionError, Timeout, RequestException
+        import random
+        
+        # 定义重试参数
+        max_retries = 3
+        base_delay = 2  # 基础延时秒数
+        max_delay = 30  # 最大延时秒数
+        
+        # 根据股票代码判断市场
+        market = self._get_stock_market(stock_code)
+        
+        # 定义接口列表，按优先级排序
+        interfaces = [
+            ('stock_zh_a_hist', lambda: ak.stock_zh_a_hist(symbol=stock_code, period="daily", start_date=start_date, end_date=end_date, adjust=adjust)),
+            ('stock_zh_a_daily', lambda: ak.stock_zh_a_daily(symbol=f"{market}{stock_code}", start_date=start_date, end_date=end_date, adjust=adjust)),
+            ('stock_zh_a_hist_tx', lambda: ak.stock_zh_a_hist_tx(symbol=f"{market}{stock_code}", start_date=start_date, end_date=end_date, adjust=adjust))
+        ]
+        
+        for interface_name, interface_func in interfaces:
+            for retry in range(max_retries):
+                try:
+                    # 添加随机延时，避免频繁请求
+                    if retry > 0:
+                        delay = min(base_delay * (2 ** retry) + random.uniform(0, 1), max_delay)
+                        self.logger.info(f"股票{stock_code}使用{interface_name}接口第{retry+1}次重试，延时{delay:.2f}秒")
+                        time.sleep(delay)
+                    
+                    # 调用接口获取数据
+                    df = interface_func()
+                    
+                    if df is not None and not df.empty:
+                        # 根据接口类型处理数据格式
+                        if interface_name == 'stock_zh_a_hist':
+                            # 东财接口，直接返回
+                            df["股票代码"] = stock_code
+                            return df
+                        elif interface_name == 'stock_zh_a_daily':
+                            # 新浪接口，需要转换列名
+                            df.rename(columns={
+                                "date": "日期",
+                                "open": "开盘",
+                                "high": "最高",
+                                "low": "最低",
+                                "close": "收盘",
+                                "volume": "成交量",
+                                "amount": "成交额",
+                                "turnover": "换手率"
+                            }, inplace=True)
+                            
+                            # 新浪接口的成交量单位是股，需要转换为手（除以100）
+                            if "成交量" in df.columns:
+                                df["成交量"] = df["成交量"].apply(lambda x: x / 100 if pd.notna(x) else x)
+                            
+                            # 添加缺失的列
+                            if "振幅" not in df.columns:
+                                df["振幅"] = ((df["最高"] - df["最低"]) / df["收盘"].shift(1)) * 100
+                            if "涨跌幅" not in df.columns:
+                                df["涨跌幅"] = ((df["收盘"] - df["收盘"].shift(1)) / df["收盘"].shift(1)) * 100
+                            if "涨跌额" not in df.columns:
+                                df["涨跌额"] = df["收盘"] - df["收盘"].shift(1)
+                            
+                            df["股票代码"] = stock_code
+                            return df
+                        elif interface_name == 'stock_zh_a_hist_tx':
+                            # 腾讯接口，需要转换列名
+                            df.rename(columns={
+                                "date": "日期",
+                                "open": "开盘",
+                                "close": "收盘",
+                                "high": "最高",
+                                "low": "最低",
+                                "amount": "成交量"  # 腾讯接口的amount实际是成交量（手）
+                            }, inplace=True)
+                            
+                            # 添加缺失的列
+                            if "成交额" not in df.columns:
+                                # 估算成交额（成交量*收盘价*100）作为近似值
+                                df["成交额"] = df["成交量"] * df["收盘"] * 100
+                            
+                            if "振幅" not in df.columns:
+                                df["振幅"] = ((df["最高"] - df["最低"]) / df["收盘"].shift(1)) * 100
+                            if "涨跌幅" not in df.columns:
+                                df["涨跌幅"] = ((df["收盘"] - df["收盘"].shift(1)) / df["收盘"].shift(1)) * 100
+                            if "涨跌额" not in df.columns:
+                                df["涨跌额"] = df["收盘"] - df["收盘"].shift(1)
+                            if "换手率" not in df.columns:
+                                df["换手率"] = np.nan  # 腾讯接口没有换手率数据
+                            
+                            df["股票代码"] = stock_code
+                            return df
+                    
+                    # 如果数据为空，尝试下一个接口
+                    break
+                    
+                except (ConnectionError, Timeout, RequestException) as e:
+                    # 网络相关错误，进行重试
+                    if "Connection aborted" in str(e) or "Remote end closed connection" in str(e):
+                        self.logger.warning(f"股票{stock_code}使用{interface_name}接口遇到连接问题: {e}，第{retry+1}/{max_retries}次重试")
+                        if retry == max_retries - 1:
+                            self.logger.error(f"股票{stock_code}使用{interface_name}接口重试{max_retries}次后仍然失败，尝试下一个接口")
+                            break
+                        continue
+                    else:
+                        # 其他网络错误也进行重试
+                        self.logger.warning(f"股票{stock_code}使用{interface_name}接口遇到网络错误: {e}，第{retry+1}/{max_retries}次重试")
+                        if retry == max_retries - 1:
+                            self.logger.error(f"股票{stock_code}使用{interface_name}接口重试{max_retries}次后仍然失败，尝试下一个接口")
+                            break
+                        continue
+                except Exception as e:
+                    # 其他异常，记录并尝试下一个接口
+                    self.logger.debug(f"股票{stock_code}使用{interface_name}接口失败: {e}，尝试下一个接口")
+                    break
+        
+        # 所有接口都失败
+        self.logger.warning(f"股票{stock_code}所有接口都失败，无法获取历史数据")
+        return None
             
     def _get_stock_market(self, stock_code):
         """根据股票代码判断市场
@@ -555,44 +669,82 @@ class StockHistoricalData:
         Returns:
             pandas.DataFrame: 最新行情数据
         """
-        try:
-            self.logger.info("获取最新一个交易日的所有股票数据")
-            df = ak.stock_zh_a_spot_em()
-            
-            if df is None or df.empty:
-                self.logger.warning("获取最新行情数据为空")
-                return None
-            
-            # 清洗数据，要求流通市值不为空
-            df = df[df["流通市值"].notna()]
-            
-            # 转换列名
-            df.rename(columns={
-                "代码": "股票代码",
-                "今开": "开盘",
-                "最新价": "收盘",
-                "最高": "最高",
-                "最低": "最低",
-                "成交量": "成交量",
-                "成交额": "成交额",
-                "振幅": "振幅",
-                "涨跌幅": "涨跌幅",
-                "涨跌额": "涨跌额",
-                "换手率": "换手率"
-            }, inplace=True)
-            
-            # 添加日期列
-            df["日期"] = pd.to_datetime(self.last_trading_day)
-            
-            # 选择需要的列
-            columns = ["股票代码", "日期", "开盘", "收盘", "最高", "最低", "成交量", "成交额", "振幅", "涨跌幅", "涨跌额", "换手率"]
-            df = df[columns]
-            
-            self.logger.info(f"获取到{len(df)}只股票的最新行情数据")
-            return df
-        except Exception as e:
-            self.logger.error(f"获取最新行情数据异常: {e}")
-            return None
+        import requests
+        from requests.exceptions import ConnectionError, Timeout, RequestException
+        import random
+        
+        # 定义重试参数
+        max_retries = 3
+        base_delay = 2  # 基础延时秒数
+        max_delay = 30  # 最大延时秒数
+        
+        for retry in range(max_retries):
+            try:
+                # 添加随机延时，避免频繁请求
+                if retry > 0:
+                    delay = min(base_delay * (2 ** retry) + random.uniform(0, 1), max_delay)
+                    self.logger.info(f"获取最新行情数据第{retry+1}次重试，延时{delay:.2f}秒")
+                    time.sleep(delay)
+                
+                self.logger.info("获取最新一个交易日的所有股票数据")
+                df = ak.stock_zh_a_spot_em()
+                
+                if df is None or df.empty:
+                    self.logger.warning("获取最新行情数据为空")
+                    if retry == max_retries - 1:
+                        return None
+                    continue
+                
+                # 清洗数据，要求流通市值不为空
+                df = df[df["流通市值"].notna()]
+                
+                # 转换列名
+                df.rename(columns={
+                    "代码": "股票代码",
+                    "今开": "开盘",
+                    "最新价": "收盘",
+                    "最高": "最高",
+                    "最低": "最低",
+                    "成交量": "成交量",
+                    "成交额": "成交额",
+                    "振幅": "振幅",
+                    "涨跌幅": "涨跌幅",
+                    "涨跌额": "涨跌额",
+                    "换手率": "换手率"
+                }, inplace=True)
+                
+                # 添加日期列
+                df["日期"] = pd.to_datetime(self.last_trading_day)
+                
+                # 选择需要的列
+                columns = ["股票代码", "日期", "开盘", "收盘", "最高", "最低", "成交量", "成交额", "振幅", "涨跌幅", "涨跌额", "换手率"]
+                df = df[columns]
+                
+                self.logger.info(f"获取到{len(df)}只股票的最新行情数据")
+                return df
+                
+            except (ConnectionError, Timeout, RequestException) as e:
+                # 网络相关错误，进行重试
+                if "Connection aborted" in str(e) or "Remote end closed connection" in str(e):
+                    self.logger.warning(f"获取最新行情数据遇到连接问题: {e}，第{retry+1}/{max_retries}次重试")
+                    if retry == max_retries - 1:
+                        self.logger.error(f"获取最新行情数据重试{max_retries}次后仍然失败")
+                        return None
+                    continue
+                else:
+                    # 其他网络错误也进行重试
+                    self.logger.warning(f"获取最新行情数据遇到网络错误: {e}，第{retry+1}/{max_retries}次重试")
+                    if retry == max_retries - 1:
+                        self.logger.error(f"获取最新行情数据重试{max_retries}次后仍然失败")
+                        return None
+                    continue
+            except Exception as e:
+                self.logger.error(f"获取最新行情数据异常: {e}")
+                if retry == max_retries - 1:
+                    return None
+                continue
+        
+        return None
     
     def save_to_database_with_pool(self, df, table_name):
         """使用连接池将数据保存到数据库
@@ -821,8 +973,8 @@ class StockHistoricalData:
             success_count = 0
             failed_count = 0
             
-            # 使用线程池并行处理
-            max_workers = min(8, len(stock_list))  # 最多8个线程，适配8核心CPU
+            # 使用线程池并行处理（降低并发数以减少被封IP的风险）
+            max_workers = min(3, len(stock_list))  # 最多3个线程，降低并发以避免IP被封
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 # 提交所有任务
                 future_to_stock = {executor.submit(self.update_stock_data, stock_code): stock_code for stock_code in stock_list}
@@ -859,6 +1011,9 @@ class StockHistoricalData:
         finally:
             # 关闭数据库连接
             self.db.close()
+            # 关闭网络会话
+            if hasattr(self, 'session') and self.session:
+                self.session.close()
 
 
 def main():

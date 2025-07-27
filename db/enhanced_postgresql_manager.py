@@ -4,17 +4,20 @@
 """
 增强版PostgreSQL数据库管理器
 
-扩展基本PostgreSQL管理器，集成触发器、存储过程、函数等高级功能
+扩展基本PostgreSQL管理器，集成触发器、存储过程、函数等高级功能，
+并提供统一的表数据读取接口
 """
 
 import os
 import sys
 import json
 import select
+import logging
 from pathlib import Path
 import psycopg2
 import psycopg2.extras
 import pandas as pd
+from datetime import datetime, timedelta
 
 # 添加项目根目录到系统路径
 project_root = str(Path(__file__).resolve().parent.parent)  # db/enhanced_postgresql_manager.py -> stock-a
@@ -24,17 +27,30 @@ if project_root not in sys.path:
 # 导入基本PostgreSQL管理器
 from db.postgresql_manager import PostgreSQLManager
 
+# 配置日志记录器
+logger = logging.getLogger(__name__)
+
 
 class EnhancedPostgreSQLManager(PostgreSQLManager):
     """增强版PostgreSQL数据库管理器类
     
-    扩展基本PostgreSQL管理器，提供对触发器、存储过程、函数等高级功能的支持
+    扩展基本PostgreSQL管理器，提供对触发器、存储过程、函数等高级功能的支持，
+    并集成表数据读取功能，提供统一的数据访问接口
     """
     
-    def __init__(self):
-        """初始化数据库连接"""
+    def __init__(self, debug_mode=False):
+        """初始化数据库连接
+        
+        Args:
+            debug_mode (bool, optional): 是否启用调试模式，默认为False
+        """
         super().__init__()
         self._setup_notification_listener()
+        
+        # 表数据读取相关属性
+        self.debug_mode = debug_mode
+        self.tables_config = {}
+        self._load_tables_config()
     
     def _setup_notification_listener(self):
         """设置数据库通知监听器"""
@@ -359,6 +375,449 @@ class EnhancedPostgreSQLManager(PostgreSQLManager):
         
         # 调用父类的关闭方法
         super().close()
+        logger.info("增强版PostgreSQL管理器已关闭数据库连接")
+        
+    # ========== 表数据读取功能 ==========
+    
+    def _load_tables_config(self):
+        """加载表配置信息"""
+        try:
+            # 配置文件路径
+            config_dir = os.path.join(project_root, 'config')
+            tables_config_path = os.path.join(config_dir, 'tables_config.json')
+            
+            # 读取配置文件
+            with open(tables_config_path, 'r', encoding='utf-8') as f:
+                self.tables_config = json.load(f)
+                
+            if self.debug_mode:
+                logger.debug(f"已加载表配置: {len(self.tables_config)} 个表")
+        except Exception as e:
+            logger.error(f"加载表配置失败: {e}")
+            self.tables_config = {}
+    
+    def get_table_info(self, table_name):
+        """获取表信息
+        
+        Args:
+            table_name (str): 表名
+            
+        Returns:
+            dict: 表配置信息
+        """
+        return self.tables_config.get(table_name, {})
+    
+    def get_all_table_names(self):
+        """获取所有表名
+        
+        Returns:
+            list: 表名列表
+        """
+        return list(self.tables_config.keys())
+    
+    def read_table(self, table_name, conditions=None, order_by=None, 
+                  order_desc=False, limit=None, offset=None):
+        """读取表数据
+        
+        Args:
+            table_name (str): 表名
+            conditions (dict, optional): 查询条件，键为列名，值为查询值
+            order_by (list, optional): 排序列名列表
+            order_desc (bool, optional): 是否降序排序
+            limit (int, optional): 返回记录数量限制
+            offset (int, optional): 返回记录起始偏移量
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        try:
+            # 检查表是否存在
+            if not self._check_table_exists(table_name):
+                logger.warning(f"表 {table_name} 不存在")
+                return pd.DataFrame()
+            
+            # 构建查询SQL
+            sql = f'SELECT * FROM "{table_name}"'
+            params = []
+            
+            # 添加查询条件
+            if conditions:
+                where_clauses = []
+                for col, val in conditions.items():
+                    where_clauses.append(f'"{col}" = %s')
+                    params.append(val)
+                
+                if where_clauses:
+                    sql += " WHERE " + " AND ".join(where_clauses)
+            
+            # 添加排序
+            if order_by:
+                order_clauses = [f'"{col}"' for col in order_by]
+                sql += " ORDER BY " + ", ".join(order_clauses)
+                
+                if order_desc:
+                    sql += " DESC"
+            
+            # 添加分页
+            if limit is not None:
+                sql += f" LIMIT {limit}"
+                
+                if offset is not None:
+                    sql += f" OFFSET {offset}"
+            
+            # 执行查询
+            if self.debug_mode:
+                logger.debug(f"执行SQL: {sql}, 参数: {params}")
+                
+            return self.query_df(sql, tuple(params) if params else None)
+        except Exception as e:
+            logger.error(f"读取表 {table_name} 数据失败: {e}")
+            return pd.DataFrame()
+    
+    def read_financial_statement(self, statement_type, stock_code=None, 
+                               report_date=None, limit=4):
+        """读取财务报表数据
+        
+        Args:
+            statement_type (str): 报表类型，如'资产负债表'、'利润表'、'现金流量表'
+            stock_code (str, optional): 股票代码
+            report_date (str, optional): 报告期，格式为'YYYY-MM-DD'
+            limit (int, optional): 返回记录数量限制，默认为4
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        try:
+            # 检查表是否存在
+            if not self._check_table_exists(statement_type):
+                logger.warning(f"表 {statement_type} 不存在")
+                return pd.DataFrame()
+            
+            # 构建查询条件
+            conditions = {}
+            if stock_code:
+                conditions["股票代码"] = stock_code
+                
+            if report_date:
+                conditions["报告期"] = report_date
+            
+            # 按报告期降序排序
+            order_by = ["报告期"]
+            order_desc = True
+            
+            # 执行查询
+            return self.read_table(statement_type, conditions, order_by, order_desc, limit)
+        except Exception as e:
+            logger.error(f"读取财务报表 {statement_type} 数据失败: {e}")
+            return pd.DataFrame()
+    
+    def _check_table_exists(self, table_name):
+        """检查表是否存在
+        
+        Args:
+            table_name (str): 表名
+            
+        Returns:
+            bool: 表是否存在
+        """
+        try:
+            sql = """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = %s
+            );
+            """
+            result = self.query_one(sql, (table_name,))
+            return result[0] if result else False
+        except Exception as e:
+            logger.error(f"检查表 {table_name} 是否存在失败: {e}")
+            return False
+    
+    def read_historical_data(self, table_name, conditions=None, 
+                           start_date=None, end_date=None, limit=60):
+        """读取历史数据
+        
+        Args:
+            table_name (str): 表名
+            conditions (dict, optional): 查询条件，键为列名，值为查询值
+            start_date (str, optional): 开始日期，格式为'YYYY-MM-DD'
+            end_date (str, optional): 结束日期，格式为'YYYY-MM-DD'
+            limit (int, optional): 返回记录数量限制，默认为60
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        try:
+            # 检查表是否存在
+            if not self._check_table_exists(table_name):
+                logger.warning(f"表 {table_name} 不存在")
+                return pd.DataFrame()
+            
+            # 构建查询SQL
+            sql = f'SELECT * FROM "{table_name}"'
+            params = []
+            
+            # 添加查询条件
+            where_clauses = []
+            
+            if conditions:
+                for col, val in conditions.items():
+                    where_clauses.append(f'"{col}" = %s')
+                    params.append(val)
+            
+            # 添加日期范围条件
+            if start_date:
+                where_clauses.append('"日期" >= %s')
+                params.append(start_date)
+                
+            if end_date:
+                where_clauses.append('"日期" <= %s')
+                params.append(end_date)
+            
+            if where_clauses:
+                sql += " WHERE " + " AND ".join(where_clauses)
+            
+            # 按日期降序排序
+            sql += ' ORDER BY "日期" DESC'
+            
+            # 添加分页
+            if limit is not None:
+                sql += f" LIMIT {limit}"
+            
+            # 执行查询
+            if self.debug_mode:
+                logger.debug(f"执行SQL: {sql}, 参数: {params}")
+                
+            df = self.query_df(sql, tuple(params) if params else None)
+            
+            # 如果结果不为空，按日期升序排序
+            if not df.empty:
+                df = df.sort_values(by="日期")
+                
+            return df
+        except Exception as e:
+            logger.error(f"读取历史数据失败: {e}")
+            return pd.DataFrame()
+    
+    def read_stock_quotes(self, stock_code, start_date=None, end_date=None, limit=60):
+        """读取股票行情数据
+        
+        Args:
+            stock_code (str): 股票代码
+            start_date (str, optional): 开始日期，格式为'YYYY-MM-DD'
+            end_date (str, optional): 结束日期，格式为'YYYY-MM-DD'
+            limit (int, optional): 返回记录数量限制，默认为60
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        table_name = "股票历史行情"
+        
+        # 处理日期参数
+        if start_date is None and end_date is None:
+            # 默认查询最近60个交易日数据
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=120)  # 考虑到非交易日，往前多取一些日期
+            
+            start_date_str = start_date.strftime('%Y-%m-%d')
+            end_date_str = end_date.strftime('%Y-%m-%d')
+        else:
+            start_date_str = start_date
+            end_date_str = end_date
+        
+        # 使用通用历史数据读取方法
+        return self.read_historical_data(
+            table_name=table_name,
+            conditions={"股票代码": stock_code},
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=limit
+        )
+    
+    def read_technical_indicators(self, stock_code, indicators=None, 
+                                start_date=None, end_date=None, limit=60):
+        """读取技术指标数据
+        
+        Args:
+            stock_code (str): 股票代码
+            indicators (list, optional): 要查询的指标列表，如['SMA5', 'SMA10', 'RSI6']
+            start_date (str, optional): 开始日期，格式为'YYYY-MM-DD'
+            end_date (str, optional): 结束日期，格式为'YYYY-MM-DD'
+            limit (int, optional): 返回记录数量限制，默认为60
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        table_name = "技术指标"
+        
+        # 处理日期参数
+        if start_date is None and end_date is None:
+            # 默认查询最近60个交易日数据
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=120)  # 考虑到非交易日，往前多取一些日期
+            
+            start_date_str = start_date.strftime('%Y-%m-%d')
+            end_date_str = end_date.strftime('%Y-%m-%d')
+        else:
+            start_date_str = start_date
+            end_date_str = end_date
+        
+        # 使用通用历史数据读取方法
+        df = self.read_historical_data(
+            table_name=table_name,
+            conditions={"股票代码": stock_code},
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=limit
+        )
+        
+        # 如果指定了要查询的指标列，则只保留这些列和必要的标识列
+        if indicators and not df.empty:
+            # 确保保留日期和股票代码列
+            keep_cols = ["日期", "股票代码"] + indicators
+            # 只保留存在的列
+            existing_cols = [col for col in keep_cols if col in df.columns]
+            df = df[existing_cols]
+            
+        return df
+    
+    def read_stock_info(self, stock_code: str = None, stock_name: str = None, 
+                       industry: str = None) -> pd.DataFrame:
+        """读取股票基本信息
+        
+        Args:
+            stock_code (str, optional): 股票代码
+            stock_name (str, optional): 股票名称
+            industry (str, optional): 所属行业
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        table_name = "股票基本信息"
+        conditions = {}
+        
+        if stock_code:
+            conditions["股票代码"] = stock_code
+        
+        if stock_name:
+            conditions["股票名称"] = stock_name
+        
+        if industry:
+            conditions["所属行业"] = industry
+        
+        return self.read_table(table_name, conditions)
+    
+    def read_industry_info(self, industry_code: str = None, 
+                         industry_name: str = None) -> pd.DataFrame:
+        """读取行业信息
+        
+        Args:
+            industry_code (str, optional): 行业代码
+            industry_name (str, optional): 行业名称
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        table_name = "行业板块"
+        conditions = {}
+        
+        if industry_code:
+            conditions["行业代码"] = industry_code
+        
+        if industry_name:
+            conditions["行业名称"] = industry_name
+        
+        return self.read_table(table_name, conditions)
+    
+    def read_concept_info(self, concept_code: str = None, 
+                        concept_name: str = None) -> pd.DataFrame:
+        """读取概念信息
+        
+        Args:
+            concept_code (str, optional): 概念代码
+            concept_name (str, optional): 概念名称
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        table_name = "概念板块"
+        conditions = {}
+        
+        if concept_code:
+            conditions["概念代码"] = concept_code
+        
+        if concept_name:
+            conditions["概念名称"] = concept_name
+        
+        return self.read_table(table_name, conditions)
+    
+    def read_index_quotes(self, index_code: str, start_date: str = None, 
+                         end_date: str = None, limit: int = 60) -> pd.DataFrame:
+        """读取指数行情数据
+        
+        Args:
+            index_code (str): 指数代码
+            start_date (str, optional): 开始日期，格式为'YYYY-MM-DD'
+            end_date (str, optional): 结束日期，格式为'YYYY-MM-DD'
+            limit (int, optional): 返回记录数量限制，默认为60
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        table_name = "指数历史行情"
+        
+        # 使用通用历史数据读取方法
+        return self.read_historical_data(
+            table_name=table_name,
+            conditions={"指数代码": index_code},
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit
+        )
+    
+    def read_dragon_tiger_list(self, stock_code: str = None, 
+                             trade_date: str = None, 
+                             limit: int = 50) -> pd.DataFrame:
+        """读取龙虎榜数据
+        
+        Args:
+            stock_code (str, optional): 股票代码
+            trade_date (str, optional): 交易日期，格式为'YYYY-MM-DD'
+            limit (int, optional): 返回记录数量限制，默认为50
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        table_name = "龙虎榜详情"
+        conditions = {}
+        
+        if stock_code:
+            conditions["股票代码"] = stock_code
+        
+        if trade_date:
+            conditions["交易日期"] = trade_date
+        
+        # 按日期降序排序
+        order_by = ["交易日期"]
+        order_desc = True
+        
+        return self.read_table(table_name, conditions, order_by=order_by, 
+                             order_desc=order_desc, limit=limit)
+    
+    def read_stock_listing_stats(self, stock_code: str) -> pd.DataFrame:
+        """读取个股上榜统计
+        
+        Args:
+            stock_code (str): 股票代码
+            
+        Returns:
+            pandas.DataFrame: 查询结果DataFrame
+        """
+        table_name = "个股上榜统计"
+        conditions = {"股票代码": stock_code}
+        
+        return self.read_table(table_name, conditions)
 
 
 # 测试代码

@@ -247,3 +247,116 @@ print(f"策略已保存到: {file_path}")
 3. 确保提供策略所需的所有数据列
 4. 参数类型必须是有效的JSON类型：integer、number、boolean或string
 5. 条件表达式中可以使用pandas和numpy函数，但需要确保这些函数在策略执行环境中可用
+
+## 多元数据访问
+
+策略现在支持访问多种数据源，可以在条件表达式中使用以下方法获取各类数据：
+
+### 可用的数据访问方法
+
+- **get_stock_quotes(stock_code, start_date=None, end_date=None, limit=60)**
+  获取股票行情数据
+  ```json
+  "condition": "get_stock_quotes('000001', start_date='2023-01-01', limit=30)['收盘'].mean() > 收盘"
+  ```
+
+- **get_technical_indicators(stock_code, indicators=None, start_date=None, end_date=None, limit=60)**
+  获取技术指标数据
+  ```json
+  "condition": "get_technical_indicators('000001', indicators=['RSI14', 'MACD12_26_9'], limit=10)['RSI14'].iloc[-1] < 30"
+  ```
+
+- **get_financial_statement(statement_type, stock_code=None, report_date=None, limit=4)**
+  获取财务报表数据
+  ```json
+  "condition": "get_financial_statement('利润表', 股票代码, limit=1)['净利润'].iloc[0] > 0"
+  ```
+
+- **get_financial_ratios(stock_code, report_date=None)**
+  获取财务指标
+  ```json
+  "condition": "get_financial_ratios(股票代码)['ROE'] > 15"
+  ```
+
+- **get_stock_info(stock_code=None, stock_name=None, industry=None)**
+  获取股票基本信息
+  ```json
+  "condition": "get_stock_info(股票代码)['所属行业'].iloc[0] == '计算机'"
+  ```
+
+- **get_industry_info(industry_code=None, industry_name=None)**
+  获取行业信息
+  ```json
+  "condition": "get_industry_info(industry_name='计算机')['行业平均PE'].iloc[0] > 30"
+  ```
+
+- **get_concept_info(concept_code=None, concept_name=None)**
+  获取概念信息
+  ```json
+  "condition": "get_concept_info(concept_name='人工智能')['概念股数量'].iloc[0] > 50"
+  ```
+
+- **get_index_quotes(index_code, start_date=None, end_date=None, limit=60)**
+  获取指数行情数据
+  ```json
+  "condition": "get_index_quotes('000001', limit=5)['收盘'].pct_change().mean() > 0"
+  ```
+
+- **get_dragon_tiger_list(stock_code=None, trade_date=None, limit=50)**
+  获取龙虎榜数据
+  ```json
+  "condition": "len(get_dragon_tiger_list(股票代码, limit=10)) > 0"
+  ```
+
+- **get_table_data(table_name, conditions=None, order_by=None, order_desc=False, limit=None, offset=None)**
+  获取任意表数据
+  ```json
+  "condition": "get_table_data('股票池', {'类型': '白马股'}, limit=100)['股票代码'].isin([股票代码])"
+  ```
+
+### 使用示例
+
+以下是一个结合基本面和技术面的策略示例：
+
+```json
+{
+  "name": "基本面技术面结合策略",
+  "description": "结合财务数据和技术指标的综合策略",
+  "required_data": ["日期", "股票代码", "收盘"],
+  "parameters": {
+    "ROE阈值": {
+      "type": "number",
+      "default": 15.0,
+      "min": 5.0,
+      "max": 30.0,
+      "description": "最低ROE要求"
+    },
+    "RSI周期": {
+      "type": "integer",
+      "default": 14,
+      "min": 2,
+      "max": 30,
+      "description": "RSI计算周期"
+    }
+  },
+  "buy_conditions": [
+    {
+      "condition": "get_financial_ratios(股票代码)['ROE'] > params['ROE阈值'] and RSI(收盘, params['RSI周期']) < 30",
+      "description": "高ROE且RSI超卖",
+      "strength": 0.8
+    },
+    {
+      "condition": "get_index_quotes('000001', limit=5)['收盘'].pct_change().mean() > 0 and 收盘 > SMA(收盘, 20)",
+      "description": "大盘上涨且股价站上20日均线",
+      "strength": 0.7
+    }
+  ],
+  "sell_conditions": [
+    {
+      "condition": "RSI(收盘, params['RSI周期']) > 70",
+      "description": "RSI超买",
+      "strength": 0.6
+    }
+  ]
+}
+```

@@ -1,0 +1,224 @@
+{
+  "name": "industry_momentum",
+  "display_name": "行业动量",
+  "description": "基于行业内股票价格变化计算行业整体动量，反映行业趋势强度",
+  "version": "1.0",
+  "author": "系统",
+  "category": "行业分析",
+  "tags": ["行业", "动量", "趋势强度"],
+  
+  "data_sources": [
+    {
+      "table": "股票历史行情_后复权",
+      "columns": ["收盘价", "市值"],
+      "id_column": "股票代码",
+      "date_column": "日期",
+      "aliases": {
+        "收盘价": "close",
+        "市值": "market_cap"
+      },
+      "join_conditions": {
+        "table": "股票基本信息",
+        "on": "股票代码",
+        "filter": {
+          "行业名称": "${entity_id}"
+        }
+      },
+      "required": true
+    },
+    {
+      "table": "行业历史行情",
+      "columns": ["收盘价"],
+      "id_column": "行业名称",
+      "date_column": "日期",
+      "aliases": {
+        "收盘价": "index_close"
+      },
+      "required": false
+    }
+  ],
+  
+  "calculation": {
+    "operation": "function",
+    "function": "industry_momentum_calculation",
+    "args": ["close", "market_cap"],
+    "kwargs": {
+      "momentum_period": 20,
+      "weight_method": "market_cap"
+    }
+  },
+  
+  "custom_functions": {
+    "industry_momentum_calculation": {
+      "description": "行业动量计算逻辑",
+      "implementation": {
+        "type": "aggregation",
+        "steps": [
+          {
+            "name": "price_change",
+            "operation": "function",
+            "function": "pct_change",
+            "args": ["close"],
+            "kwargs": {"periods": 1}
+          },
+          {
+            "name": "momentum_20d",
+            "operation": "function",
+            "function": "pct_change",
+            "args": ["close"],
+            "kwargs": {"periods": 20}
+          },
+          {
+            "name": "weighted_momentum",
+            "operation": "arithmetic",
+            "expression": "momentum_20d * market_cap"
+          },
+          {
+            "name": "total_weight",
+            "operation": "function",
+            "function": "sum",
+            "args": ["market_cap"],
+            "group_by": "date"
+          },
+          {
+            "name": "total_weighted_momentum",
+            "operation": "function",
+            "function": "sum",
+            "args": ["weighted_momentum"],
+            "group_by": "date"
+          },
+          {
+            "name": "industry_momentum",
+            "operation": "arithmetic",
+            "expression": "total_weighted_momentum / total_weight"
+          },
+          {
+            "name": "momentum_score",
+            "operation": "function",
+            "function": "rank",
+            "args": ["industry_momentum"],
+            "kwargs": {"window": 252}
+          }
+        ],
+        "return": "momentum_score"
+      }
+    }
+  },
+  
+  "post_processing": {
+    "dtype": "float",
+    "fill_na": 0.5,
+    "clip": {
+      "min": 0.0,
+      "max": 1.0
+    },
+    "round": 4,
+    "description": "动量得分，0-1之间，越高表示动量越强"
+  },
+  
+  "output": {
+    "table": "行业衍生指标表",
+    "column": "行业动量",
+    "data_type": "DECIMAL(10,4)",
+    "description": "行业动量得分，范围0-1，基于市值加权的价格动量计算",
+    "default_value": 0.5
+  },
+  
+  "validation": {
+    "min_data_points": 25,
+    "min_entities_per_group": 3,
+    "required_columns": ["close", "market_cap"],
+    "data_quality_checks": [
+      {
+        "type": "not_null",
+        "columns": ["close", "market_cap"]
+      },
+      {
+        "type": "positive",
+        "columns": ["close", "market_cap"]
+      },
+      {
+        "type": "sufficient_coverage",
+        "description": "确保行业内有足够的股票数据",
+        "min_coverage_ratio": 0.7
+      }
+    ]
+  },
+  
+  "parameters": {
+    "momentum_period": {
+      "default": 20,
+      "description": "动量计算周期（交易日）",
+      "type": "int",
+      "min": 5,
+      "max": 252
+    },
+    "weight_method": {
+      "default": "market_cap",
+      "description": "权重计算方法",
+      "type": "string",
+      "options": ["market_cap", "equal_weight", "volume"]
+    },
+    "ranking_window": {
+      "default": 252,
+      "description": "排名窗口期（交易日）",
+      "type": "int",
+      "min": 20,
+      "max": 1000
+    }
+  },
+  
+  "applicable_entities": ["industry"],
+  "frequency": ["daily"],
+  
+  "performance": {
+    "complexity": "high",
+    "estimated_time_per_entity": "2.0s",
+    "memory_usage": "high",
+    "notes": "需要聚合多个股票数据，计算复杂度较高"
+  },
+  
+  "dependencies": {
+    "indicators": [],
+    "tables": ["股票日线数据表", "股票基本信息表", "行业指数数据表"]
+  },
+  
+  "aggregation_config": {
+    "group_by": ["行业名称", "日期"],
+    "entity_filter": {
+      "table": "股票基本信息表",
+      "condition": "行业名称 = ${entity_id}"
+    },
+    "min_entities": 3,
+    "weight_column": "market_cap"
+  },
+  
+  "examples": [
+    {
+      "description": "行业动量计算示例",
+      "input": {
+        "stocks": [
+          {
+            "code": "000001",
+            "close": [100, 102, 104, 106, 108],
+            "market_cap": [1000, 1000, 1000, 1000, 1000]
+          },
+          {
+            "code": "000002",
+            "close": [50, 51, 52, 53, 54],
+            "market_cap": [500, 500, 500, 500, 500]
+          }
+        ]
+      },
+      "expected_output": [0.0, 0.2, 0.4, 0.6, 0.8]
+    }
+  ],
+  
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_modified": "2024-01-01",
+    "test_status": "passed",
+    "documentation_url": "https://example.com/docs/industry_momentum",
+    "related_indicators": ["industry_strength", "sector_rotation"]
+  }
+}

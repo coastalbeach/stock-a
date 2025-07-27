@@ -14,17 +14,22 @@ title 日度数据获取批处理程序
 color 0A
 
 :: 设置路径变量
-set "ROOT_DIR=%~dp0..\..\."
+set "ROOT_DIR=%~dp0..\..\"
 set "PYTHON_CMD=python"
 set "LOG_DIR=%ROOT_DIR%\logs"
 set "DATA_DIR=%ROOT_DIR%\data\daily"
 
 :: 获取当前日期（格式：YYYYMMDD）
-for /f "tokens=1-3 delims=/" %%a in ('%DATE%') do (
-    set "DAY=%%a"
-    set "MONTH=%%b"
+for /f "tokens=2 delims= " %%a in ('date /t') do set "current_date=%%a"
+for /f "tokens=1-3 delims=/" %%a in ("%current_date%") do (
+    set "MONTH=%%a"
+    set "DAY=%%b"
     set "YEAR=%%c"
 )
+
+:: 补零处理
+if %MONTH% LSS 10 set "MONTH=0%MONTH%"
+if %DAY% LSS 10 set "DAY=0%DAY%"
 set "TODAY=%YEAR%%MONTH%%DAY%"
 
 :: 创建日志目录
@@ -86,7 +91,7 @@ if %ERRORLEVEL% NEQ 0 (
 echo 正在获取板块数据...
 echo [%DATE% %TIME%] 开始获取板块数据 >> "%LOG_FILE%"
 cd /d "%ROOT_DIR%"
-%PYTHON_CMD% "%ROOT_DIR%\fetcher\market\board_realtime.py" >> "%LOG_FILE%" 2>&1
+%PYTHON_CMD% "%ROOT_DIR%\fetcher\market\sector_data.py" >> "%LOG_FILE%" 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo 获取板块数据失败，请查看日志文件。
     echo [%DATE% %TIME%] 获取板块数据失败，错误代码: %ERRORLEVEL% >> "%LOG_FILE%"

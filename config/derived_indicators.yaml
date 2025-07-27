@@ -149,6 +149,120 @@ tables:
         type: DATE
         primary_key: true
         description: "交易日期"
+      # 基础轮动指标
+      金叉信号:
+        type: INTEGER
+        description: "金叉信号，1表示金叉，0表示无信号"
+      量价背离信号:
+        type: INTEGER
+        description: "量价背离信号，1表示背离，0表示无背离"
+      # 相对中证全指MACD轮动指标
+      相对中证全指DIF差值:
+        type: FLOAT
+        description: "股票DIF与中证全指DIF的差值"
+      相对中证全指DEA差值:
+        type: FLOAT
+        description: "股票DEA与中证全指DEA的差值"
+      相对中证全指MACD差值:
+        type: FLOAT
+        description: "股票MACD柱状图与中证全指MACD柱状图的差值"
+      相对中证全指轮动信号:
+        type: INTEGER
+        description: "相对中证全指的轮动信号，2=强势上涨，1=温和上涨，0=中性，-1=温和下跌，-2=强势下跌"
+      # 相对行业MACD轮动指标
+      相对行业DIF差值:
+        type: FLOAT
+        description: "股票DIF与所属行业DIF的差值"
+      相对行业DEA差值:
+        type: FLOAT
+        description: "股票DEA与所属行业DEA的差值"
+      相对行业MACD差值:
+        type: FLOAT
+        description: "股票MACD柱状图与所属行业MACD柱状图的差值"
+      相对行业轮动强度:
+        type: FLOAT
+        description: "相对行业的轮动强度，标准化后的DIF差值"
+      相对行业轮动信号:
+        type: INTEGER
+        description: "相对行业的轮动信号，2=强于行业，1=略强于行业，0=与行业同步，-1=略弱于行业，-2=弱于行业"
+      # 相对市场MACD轮动指标
+      相对市场DIF差值:
+        type: FLOAT
+        description: "股票DIF与所属市场指数DIF的差值"
+      相对市场DEA差值:
+        type: FLOAT
+        description: "股票DEA与所属市场指数DEA的差值"
+      相对市场MACD差值:
+        type: FLOAT
+        description: "股票MACD柱状图与所属市场指数MACD柱状图的差值"
+      相对市场动量信号:
+        type: INTEGER
+        description: "相对市场的动量信号，1=上升动量，0=中性，-1=下降动量"
+      相对市场强度排名:
+        type: FLOAT
+        description: "DIF差值在20日内的百分位排名，0-1之间"
+      相对市场轮动信号:
+        type: INTEGER
+        description: "相对市场的轮动信号，2=强于市场，1=略强于市场，0=与市场同步，-1=略弱于市场，-2=弱于市场"
+      # 相对市值等级MACD轮动指标
+      相对市值等级DIF差值:
+        type: FLOAT
+        description: "股票DIF与同市值等级DIF均值的差值"
+      相对市值等级DEA差值:
+        type: FLOAT
+        description: "股票DEA与同市值等级DEA均值的差值"
+      相对市值等级MACD差值:
+        type: FLOAT
+        description: "股票MACD柱状图与同市值等级MACD柱状图均值的差值"
+      相对市值等级DIF标准分:
+        type: FLOAT
+        description: "DIF差值的标准化分数"
+      相对市值等级DEA标准分:
+        type: FLOAT
+        description: "DEA差值的标准化分数"
+      相对市值等级MACD标准分:
+        type: FLOAT
+        description: "MACD柱状图差值的标准化分数"
+      相对市值等级综合评分:
+        type: FLOAT
+        description: "相对市值等级的综合评分"
+      相对市值等级轮动信号:
+        type: INTEGER
+        description: "相对市值等级的轮动信号，2=强于同级，1=略强于同级，0=与同级同步，-1=略弱于同级，-2=弱于同级"
+      # 综合MACD轮动指标
+      轮动信号加总:
+        type: INTEGER
+        description: "四个维度轮动信号的简单加总"
+      加权轮动评分:
+        type: FLOAT
+        description: "加权轮动信号评分"
+      正向信号数量:
+        type: INTEGER
+        description: "正向信号的数量（0-4）"
+      负向信号数量:
+        type: INTEGER
+        description: "负向信号的数量（0-4）"
+      强正向信号数量:
+        type: INTEGER
+        description: "强正向信号的数量（0-4）"
+      强负向信号数量:
+        type: INTEGER
+        description: "强负向信号的数量（0-4）"
+      综合DIF差值:
+        type: FLOAT
+        description: "加权DIF差值综合指标"
+      趋势一致性:
+        type: INTEGER
+        description: "趋势一致性：1=上升趋势一致，-1=下降趋势一致，0=趋势不一致"
+      轮动强度:
+        type: INTEGER
+        description: "轮动强度：3=极强，2=强，1=弱正，0=中性，-1=弱负，-2=强负，-3=极弱"
+      综合轮动信号:
+        type: INTEGER
+        description: "综合轮动信号：2=强烈买入，1=买入，0=中性，-1=卖出，-2=强烈卖出"
+      信号置信度:
+        type: FLOAT
+        description: "信号置信度：有效信号数量占比（0-1）"
       updated_at:
         type: TIMESTAMP
         default: CURRENT_TIMESTAMP

@@ -1,0 +1,149 @@
+{
+  "name": "stock_vs_csi_macd_rotation",
+  "display_name": "股票相对中证全指MACD轮动",
+  "description": "基于股票MACD与中证全指MACD的差异计算轮动信号，用于判断股票相对大盘的强弱",
+  "version": "1.0",
+  "author": "系统",
+  "category": "轮动信号",
+  "tags": ["MACD", "轮动", "相对强弱", "中证全指"],
+  
+  "data_sources": [
+    {
+      "table": "股票技术指标",
+      "columns": ["DIF", "DEA", "MACD_hist"],
+      "id_column": "股票代码",
+      "date_column": "日期",
+      "aliases": {
+        "DIF": "stock_dif",
+        "DEA": "stock_dea",
+        "MACD_hist": "stock_macd_hist"
+      },
+      "conditions": {},
+      "required": true
+    },
+    {
+      "table": "指数技术指标",
+      "columns": ["DIF", "DEA", "MACD_hist"],
+      "id_column": "指数代码",
+      "date_column": "日期",
+      "aliases": {
+        "DIF": "index_dif",
+        "DEA": "index_dea",
+        "MACD_hist": "index_macd_hist"
+      },
+      "conditions": {
+        "指数代码": "000985"  
+      },
+      "required": true
+    }
+  ],
+  
+  "calculation": {
+    "steps": [
+      {
+        "name": "dif_diff",
+        "operation": "subtract",
+        "operand1": "stock_dif",
+        "operand2": "index_dif",
+        "description": "计算股票DIF与指数DIF的差值"
+      },
+      {
+        "name": "dea_diff",
+        "operation": "subtract",
+        "operand1": "stock_dea",
+        "operand2": "index_dea",
+        "description": "计算股票DEA与指数DEA的差值"
+      },
+      {
+        "name": "macd_hist_diff",
+        "operation": "subtract",
+        "operand1": "stock_macd_hist",
+        "operand2": "index_macd_hist",
+        "description": "计算股票MACD柱状图与指数MACD柱状图的差值"
+      },
+      {
+        "name": "dif_diff_ma5",
+        "operation": "rolling_mean",
+        "series": "dif_diff",
+        "window": 5,
+        "description": "DIF差值的5日均线"
+      },
+      {
+        "name": "dif_diff_ma20",
+        "operation": "rolling_mean",
+        "series": "dif_diff",
+        "window": 20,
+        "description": "DIF差值的20日均线"
+      },
+      {
+        "name": "rotation_signal",
+        "operation": "custom",
+        "formula": "np.where((dif_diff > 0) & (dea_diff > 0) & (macd_hist_diff > 0) & (dif_diff > dif_diff_ma5) & (dif_diff_ma5 > dif_diff_ma20), 2, np.where((dif_diff < 0) & (dea_diff < 0) & (macd_hist_diff < 0) & (dif_diff < dif_diff_ma5) & (dif_diff_ma5 < dif_diff_ma20), -2, np.where((dif_diff > 0) & (dea_diff > 0), 1, np.where((dif_diff < 0) & (dea_diff < 0), -1, 0))))",
+        "description": "轮动信号：2=强势上涨，1=温和上涨，0=中性，-1=温和下跌，-2=强势下跌"
+      }
+    ]
+  },
+  
+  "post_processing": {
+    "dtype": "int",
+    "fill_na": 0,
+    "description": "填充缺失值为0，表示中性状态"
+  },
+  
+  "output": {
+    "table": "股票衍生指标",
+    "columns": {
+      "相对中证全指DIF差值": {
+        "source": "dif_diff",
+        "data_type": "FLOAT",
+        "description": "股票DIF与中证全指DIF的差值"
+      },
+      "相对中证全指DEA差值": {
+        "source": "dea_diff",
+        "data_type": "FLOAT",
+        "description": "股票DEA与中证全指DEA的差值"
+      },
+      "相对中证全指MACD差值": {
+        "source": "macd_hist_diff",
+        "data_type": "FLOAT",
+        "description": "股票MACD柱状图与中证全指MACD柱状图的差值"
+      },
+      "相对中证全指轮动信号": {
+        "source": "rotation_signal",
+        "data_type": "INTEGER",
+        "description": "相对中证全指的轮动信号，2=强势上涨，1=温和上涨，0=中性，-1=温和下跌，-2=强势下跌"
+      }
+    }
+  },
+  
+  "validation": {
+    "min_data_points": 25,
+    "required_columns": ["stock_dif", "stock_dea", "stock_macd_hist", "index_dif", "index_dea", "index_macd_hist"],
+    "data_quality_checks": [
+      {
+        "type": "not_null",
+        "columns": ["stock_dif", "stock_dea", "index_dif", "index_dea"],
+        "threshold": 0.8
+      },
+      {
+        "type": "range_check",
+        "column": "rotation_signal",
+        "min_value": -2,
+        "max_value": 2
+      }
+    ]
+  },
+  
+  "performance": {
+    "expected_memory_mb": 50,
+    "expected_runtime_seconds": 30,
+    "parallel_safe": true
+  },
+  
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_modified": "2024-01-01",
+    "dependencies": ["股票技术指标", "指数技术指标"],
+    "update_frequency": "daily"
+  }
+}

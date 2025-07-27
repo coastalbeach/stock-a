@@ -1,0 +1,266 @@
+{
+  "name": "volume_price_divergence",
+  "display_name": "量价背离",
+  "description": "价格创新高但成交量未创新高，或价格创新低但成交量未创新低，预示趋势可能反转",
+  "version": "1.0",
+  "author": "系统",
+  "category": "背离信号",
+  "tags": ["量价关系", "背离", "反转信号"],
+  
+  "data_sources": [
+    {
+      "table": "股票历史行情_不复权",
+      "columns": ["收盘价", "成交量"],
+      "id_column": "股票代码",
+      "date_column": "日期",
+      "aliases": {
+        "收盘价": "close",
+        "成交量": "volume"
+      },
+      "required": true
+    },
+    {
+      "table": "股票技术指标",
+      "columns": ["SMA_20"],
+      "id_column": "股票代码",
+      "date_column": "日期",
+      "aliases": {
+        "SMA_20": "price_ma"
+      },
+      "required": false
+    }
+  ],
+  
+  "calculation": {
+    "operation": "function",
+    "function": "volume_price_divergence_logic",
+    "args": ["close", "volume"],
+    "kwargs": {
+      "lookback_period": 20,
+      "min_volume_ratio": 0.8
+    }
+  },
+  
+  "custom_functions": {
+    "volume_price_divergence_logic": {
+      "description": "量价背离计算逻辑",
+      "implementation": {
+        "type": "structured",
+        "steps": [
+          {
+            "name": "price_high",
+            "operation": "function",
+            "function": "rolling_max",
+            "args": ["close"],
+            "kwargs": {"window": 20}
+          },
+          {
+            "name": "volume_high",
+            "operation": "function",
+            "function": "rolling_max",
+            "args": ["volume"],
+            "kwargs": {"window": 20}
+          },
+          {
+            "name": "price_low",
+            "operation": "function",
+            "function": "rolling_min",
+            "args": ["close"],
+            "kwargs": {"window": 20}
+          },
+          {
+            "name": "volume_low",
+            "operation": "function",
+            "function": "rolling_min",
+            "args": ["volume"],
+            "kwargs": {"window": 20}
+          },
+          {
+            "name": "is_price_new_high",
+            "operation": "condition",
+            "condition": {
+              "operator": "==",
+              "left": "close",
+              "right": "price_high"
+            },
+            "true_value": 1,
+            "false_value": 0
+          },
+          {
+            "name": "is_volume_new_high",
+            "operation": "condition",
+            "condition": {
+              "operator": "==",
+              "left": "volume",
+              "right": "volume_high"
+            },
+            "true_value": 1,
+            "false_value": 0
+          },
+          {
+            "name": "is_price_new_low",
+            "operation": "condition",
+            "condition": {
+              "operator": "==",
+              "left": "close",
+              "right": "price_low"
+            },
+            "true_value": 1,
+            "false_value": 0
+          },
+          {
+            "name": "is_volume_new_low",
+            "operation": "condition",
+            "condition": {
+              "operator": "==",
+              "left": "volume",
+              "right": "volume_low"
+            },
+            "true_value": 1,
+            "false_value": 0
+          },
+          {
+            "name": "bearish_divergence",
+            "operation": "condition",
+            "condition": {
+              "operator": "and",
+              "left": {
+                "operator": "==",
+                "left": "is_price_new_high",
+                "right": 1
+              },
+              "right": {
+                "operator": "==",
+                "left": "is_volume_new_high",
+                "right": 0
+              }
+            },
+            "true_value": -1,
+            "false_value": 0
+          },
+          {
+            "name": "bullish_divergence",
+            "operation": "condition",
+            "condition": {
+              "operator": "and",
+              "left": {
+                "operator": "==",
+                "left": "is_price_new_low",
+                "right": 1
+              },
+              "right": {
+                "operator": "==",
+                "left": "is_volume_new_low",
+                "right": 0
+              }
+            },
+            "true_value": 1,
+            "false_value": 0
+          },
+          {
+            "name": "final_signal",
+            "operation": "arithmetic",
+            "expression": "bearish_divergence + bullish_divergence"
+          }
+        ],
+        "return": "final_signal"
+      }
+    }
+  },
+  
+  "post_processing": {
+    "dtype": "int",
+    "fill_na": 0,
+    "clip": {
+      "min": -1,
+      "max": 1
+    },
+    "description": "1表示看涨背离，-1表示看跌背离，0表示无背离"
+  },
+  
+  "output": {
+    "table": "股票衍生指标表",
+    "column": "量价背离",
+    "data_type": "INTEGER",
+    "description": "量价背离信号，1=看涨背离，-1=看跌背离，0=无背离",
+    "default_value": 0
+  },
+  
+  "validation": {
+    "min_data_points": 25,
+    "required_columns": ["close", "volume"],
+    "data_quality_checks": [
+      {
+        "type": "not_null",
+        "columns": ["close", "volume"]
+      },
+      {
+        "type": "positive",
+        "columns": ["close", "volume"]
+      },
+      {
+        "type": "no_outliers",
+        "columns": ["volume"],
+        "method": "iqr",
+        "threshold": 3.0
+      }
+    ]
+  },
+  
+  "parameters": {
+    "lookback_period": {
+      "default": 20,
+      "description": "回看周期，用于计算最高价和最低价",
+      "type": "int",
+      "min": 5,
+      "max": 100
+    },
+    "min_volume_ratio": {
+      "default": 0.8,
+      "description": "最小成交量比率，低于此比率才认为是背离",
+      "type": "float",
+      "min": 0.1,
+      "max": 1.0
+    }
+  },
+  
+  "applicable_entities": ["stock"],
+  "frequency": ["daily"],
+  
+  "performance": {
+    "complexity": "medium",
+    "estimated_time_per_entity": "0.5s",
+    "memory_usage": "medium"
+  },
+  
+  "dependencies": {
+    "indicators": [],
+    "tables": ["股票日线数据表"]
+  },
+  
+  "examples": [
+    {
+      "description": "看跌背离：价格创新高但成交量未创新高",
+      "input": {
+        "close": [100, 101, 102, 103, 104],
+        "volume": [1000, 900, 800, 700, 600]
+      },
+      "expected_output": [0, 0, 0, 0, -1]
+    },
+    {
+      "description": "看涨背离：价格创新低但成交量未创新低",
+      "input": {
+        "close": [100, 99, 98, 97, 96],
+        "volume": [1000, 1100, 1200, 1300, 1400]
+      },
+      "expected_output": [0, 0, 0, 0, 1]
+    }
+  ],
+  
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_modified": "2024-01-01",
+    "test_status": "passed",
+    "documentation_url": "https://example.com/docs/volume_price_divergence"
+  }
+}

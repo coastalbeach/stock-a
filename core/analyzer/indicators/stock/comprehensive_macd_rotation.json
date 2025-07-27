@@ -1,0 +1,264 @@
+{
+  "name": "comprehensive_macd_rotation",
+  "display_name": "综合MACD轮动指标",
+  "description": "综合股票相对中证全指、所属行业、所属市场、市值等级的MACD轮动信号，形成全面的轮动评价体系",
+  "version": "1.0",
+  "author": "系统",
+  "category": "综合轮动信号",
+  "tags": ["MACD", "综合轮动", "多维度分析", "轮动策略"],
+  
+  "data_sources": [
+    {
+      "table": "股票衍生指标",
+      "columns": [
+        "相对中证全指轮动信号",
+        "相对行业轮动信号",
+        "相对市场轮动信号",
+        "相对市值等级轮动信号",
+        "相对中证全指DIF差值",
+        "相对行业DIF差值",
+        "相对市场DIF差值",
+        "相对市值等级DIF差值",
+        "相对行业轮动强度",
+        "相对市场强度排名",
+        "相对市值等级综合评分"
+      ],
+      "id_column": "股票代码",
+      "date_column": "日期",
+      "aliases": {
+        "相对中证全指轮动信号": "csi_signal",
+        "相对行业轮动信号": "industry_signal",
+        "相对市场轮动信号": "market_signal",
+        "相对市值等级轮动信号": "market_cap_signal",
+        "相对中证全指DIF差值": "csi_dif_diff",
+        "相对行业DIF差值": "industry_dif_diff",
+        "相对市场DIF差值": "market_dif_diff",
+        "相对市值等级DIF差值": "market_cap_dif_diff",
+        "相对行业轮动强度": "industry_strength",
+        "相对市场强度排名": "market_strength_rank",
+        "相对市值等级综合评分": "market_cap_score"
+      },
+      "conditions": {},
+      "required": true
+    }
+  ],
+  
+  "calculation": {
+    "steps": [
+      {
+        "name": "signal_sum",
+        "operation": "custom",
+        "formula": "csi_signal + industry_signal + market_signal + market_cap_signal",
+        "description": "四个维度轮动信号的简单加总"
+      },
+      {
+        "name": "weighted_signal_score",
+        "operation": "custom",
+        "formula": "(csi_signal * 0.3 + industry_signal * 0.3 + market_signal * 0.25 + market_cap_signal * 0.15)",
+        "description": "加权轮动信号评分：中证全指30%，行业30%，市场25%，市值等级15%"
+      },
+      {
+        "name": "positive_signals_count",
+        "operation": "custom",
+        "formula": "(csi_signal > 0).astype(int) + (industry_signal > 0).astype(int) + (market_signal > 0).astype(int) + (market_cap_signal > 0).astype(int)",
+        "description": "正向信号的数量（0-4）"
+      },
+      {
+        "name": "negative_signals_count",
+        "operation": "custom",
+        "formula": "(csi_signal < 0).astype(int) + (industry_signal < 0).astype(int) + (market_signal < 0).astype(int) + (market_cap_signal < 0).astype(int)",
+        "description": "负向信号的数量（0-4）"
+      },
+      {
+        "name": "strong_positive_signals_count",
+        "operation": "custom",
+        "formula": "(csi_signal == 2).astype(int) + (industry_signal == 2).astype(int) + (market_signal == 2).astype(int) + (market_cap_signal == 2).astype(int)",
+        "description": "强正向信号的数量（信号值=2）"
+      },
+      {
+        "name": "strong_negative_signals_count",
+        "operation": "custom",
+        "formula": "(csi_signal == -2).astype(int) + (industry_signal == -2).astype(int) + (market_signal == -2).astype(int) + (market_cap_signal == -2).astype(int)",
+        "description": "强负向信号的数量（信号值=-2）"
+      },
+      {
+        "name": "dif_diff_composite",
+        "operation": "custom",
+        "formula": "(csi_dif_diff * 0.3 + industry_dif_diff * 0.3 + market_dif_diff * 0.25 + market_cap_dif_diff * 0.15)",
+        "description": "加权DIF差值综合指标"
+      },
+      {
+        "name": "dif_diff_composite_ma5",
+        "operation": "rolling_mean",
+        "series": "dif_diff_composite",
+        "window": 5,
+        "description": "综合DIF差值的5日移动平均"
+      },
+      {
+        "name": "dif_diff_composite_ma20",
+        "operation": "rolling_mean",
+        "series": "dif_diff_composite",
+        "window": 20,
+        "description": "综合DIF差值的20日移动平均"
+      },
+      {
+        "name": "trend_consistency",
+        "operation": "custom",
+        "formula": "np.where((dif_diff_composite > 0) & (dif_diff_composite_ma5 > 0) & (dif_diff_composite_ma20 > 0), 1, np.where((dif_diff_composite < 0) & (dif_diff_composite_ma5 < 0) & (dif_diff_composite_ma20 < 0), -1, 0))",
+        "description": "趋势一致性：1=上升趋势一致，-1=下降趋势一致，0=趋势不一致"
+      },
+      {
+        "name": "rotation_strength",
+        "operation": "custom",
+        "formula": "np.where(positive_signals_count >= 3, np.where(strong_positive_signals_count >= 2, 3, 2), np.where(negative_signals_count >= 3, np.where(strong_negative_signals_count >= 2, -3, -2), np.where(positive_signals_count > negative_signals_count, 1, np.where(negative_signals_count > positive_signals_count, -1, 0))))",
+        "description": "轮动强度：3=极强，2=强，1=弱正，0=中性，-1=弱负，-2=强负，-3=极弱"
+      },
+      {
+        "name": "comprehensive_signal",
+        "operation": "custom",
+        "formula": "np.where((rotation_strength >= 2) & (trend_consistency > 0) & (weighted_signal_score > 1.0), 2, np.where((rotation_strength <= -2) & (trend_consistency < 0) & (weighted_signal_score < -1.0), -2, np.where((rotation_strength > 0) & (weighted_signal_score > 0.3), 1, np.where((rotation_strength < 0) & (weighted_signal_score < -0.3), -1, 0))))",
+        "description": "综合轮动信号：2=强烈买入，1=买入，0=中性，-1=卖出，-2=强烈卖出"
+      },
+      {
+        "name": "signal_confidence",
+        "operation": "custom",
+        "formula": "np.where(comprehensive_signal != 0, (positive_signals_count + negative_signals_count) / 4.0, 0)",
+        "description": "信号置信度：有效信号数量占比（0-1）"
+      }
+    ]
+  },
+  
+  "post_processing": {
+    "dtype": "int",
+    "fill_na": 0,
+    "description": "填充缺失值为0，表示中性状态"
+  },
+  
+  "output": {
+    "table": "股票衍生指标",
+    "columns": {
+      "轮动信号加总": {
+        "source": "signal_sum",
+        "data_type": "INTEGER",
+        "description": "四个维度轮动信号的简单加总"
+      },
+      "加权轮动评分": {
+        "source": "weighted_signal_score",
+        "data_type": "FLOAT",
+        "description": "加权轮动信号评分"
+      },
+      "正向信号数量": {
+        "source": "positive_signals_count",
+        "data_type": "INTEGER",
+        "description": "正向信号的数量（0-4）"
+      },
+      "负向信号数量": {
+        "source": "negative_signals_count",
+        "data_type": "INTEGER",
+        "description": "负向信号的数量（0-4）"
+      },
+      "强正向信号数量": {
+        "source": "strong_positive_signals_count",
+        "data_type": "INTEGER",
+        "description": "强正向信号的数量（0-4）"
+      },
+      "强负向信号数量": {
+        "source": "strong_negative_signals_count",
+        "data_type": "INTEGER",
+        "description": "强负向信号的数量（0-4）"
+      },
+      "综合DIF差值": {
+        "source": "dif_diff_composite",
+        "data_type": "FLOAT",
+        "description": "加权DIF差值综合指标"
+      },
+      "趋势一致性": {
+        "source": "trend_consistency",
+        "data_type": "INTEGER",
+        "description": "趋势一致性：1=上升趋势一致，-1=下降趋势一致，0=趋势不一致"
+      },
+      "轮动强度": {
+        "source": "rotation_strength",
+        "data_type": "INTEGER",
+        "description": "轮动强度：3=极强，2=强，1=弱正，0=中性，-1=弱负，-2=强负，-3=极弱"
+      },
+      "综合轮动信号": {
+        "source": "comprehensive_signal",
+        "data_type": "INTEGER",
+        "description": "综合轮动信号：2=强烈买入，1=买入，0=中性，-1=卖出，-2=强烈卖出"
+      },
+      "信号置信度": {
+        "source": "signal_confidence",
+        "data_type": "FLOAT",
+        "description": "信号置信度：有效信号数量占比（0-1）"
+      }
+    }
+  },
+  
+  "validation": {
+    "min_data_points": 25,
+    "required_columns": ["csi_signal", "industry_signal", "market_signal", "market_cap_signal"],
+    "data_quality_checks": [
+      {
+        "type": "range_check",
+        "column": "comprehensive_signal",
+        "min_value": -2,
+        "max_value": 2
+      },
+      {
+        "type": "range_check",
+        "column": "rotation_strength",
+        "min_value": -3,
+        "max_value": 3
+      },
+      {
+        "type": "range_check",
+        "column": "signal_confidence",
+        "min_value": 0,
+        "max_value": 1
+      },
+      {
+        "type": "range_check",
+        "column": "positive_signals_count",
+        "min_value": 0,
+        "max_value": 4
+      },
+      {
+        "type": "range_check",
+        "column": "negative_signals_count",
+        "min_value": 0,
+        "max_value": 4
+      }
+    ]
+  },
+  
+  "performance": {
+    "expected_memory_mb": 30,
+    "expected_runtime_seconds": 15,
+    "parallel_safe": true
+  },
+  
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_modified": "2024-01-01",
+    "dependencies": ["股票衍生指标", "指数技术指标"],
+    "update_frequency": "daily",
+    "prerequisite_indicators": [
+      "stock_vs_csi_macd_rotation",
+      "stock_vs_industry_macd_rotation",
+      "stock_vs_market_macd_rotation",
+      "stock_vs_market_cap_macd_rotation"
+    ],
+    "index_code_mapping": {
+      "中证全指": "000985",
+      "沪深300": "000300",
+      "中证500": "000905",
+      "中证1000": "000852",
+      "上证指数": "000001",
+      "深成指数": "399001",
+      "创业板指": "399006",
+      "科创综指": "000688",
+      "北证50": "899050"
+    }
+  }
+}

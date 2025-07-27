@@ -1,0 +1,149 @@
+{
+  "name": "增强型均线交叉策略",
+  "description": "多重技术指标过滤的均线交叉策略，结合RSI、MACD、成交量等指标提高信号质量",
+  "required_data": ["日期", "股票代码", "开盘", "最高", "最低", "收盘", "成交量"],
+  "parameters": {
+    "短期均线": {
+      "type": "integer",
+      "default": 10,
+      "min": 5,
+      "max": 30,
+      "description": "短期均线周期"
+    },
+    "长期均线": {
+      "type": "integer",
+      "default": 30,
+      "min": 20,
+      "max": 60,
+      "description": "长期均线周期"
+    },
+    "RSI周期": {
+      "type": "integer",
+      "default": 14,
+      "min": 10,
+      "max": 20,
+      "description": "RSI指标周期"
+    },
+    "MACD快线": {
+      "type": "integer",
+      "default": 12,
+      "min": 8,
+      "max": 16,
+      "description": "MACD快线周期"
+    },
+    "MACD慢线": {
+      "type": "integer",
+      "default": 26,
+      "min": 20,
+      "max": 35,
+      "description": "MACD慢线周期"
+    },
+    "MACD信号线": {
+      "type": "integer",
+      "default": 9,
+      "min": 7,
+      "max": 12,
+      "description": "MACD信号线周期"
+    },
+    "成交量均线": {
+      "type": "integer",
+      "default": 20,
+      "min": 10,
+      "max": 30,
+      "description": "成交量均线周期"
+    },
+    "ATR周期": {
+      "type": "integer",
+      "default": 14,
+      "min": 10,
+      "max": 20,
+      "description": "ATR波动率周期"
+    },
+    "止损比例": {
+      "type": "float",
+      "default": 0.08,
+      "min": 0.05,
+      "max": 0.15,
+      "description": "止损比例"
+    },
+    "止盈比例": {
+      "type": "float",
+      "default": 0.20,
+      "min": 0.10,
+      "max": 0.30,
+      "description": "止盈比例"
+    }
+  },
+  "buy_conditions": [
+    {
+      "condition": "SMA(收盘, params['短期均线']) > SMA(收盘, params['长期均线']) and SMA(收盘, params['短期均线']).shift(1) <= SMA(收盘, params['长期均线']).shift(1)",
+      "description": "短期均线上穿长期均线",
+      "strength": 1.0
+    },
+    {
+      "condition": "RSI(收盘, params['RSI周期']) > 30 and RSI(收盘, params['RSI周期']) < 70",
+      "description": "RSI在合理区间，避免超买超卖",
+      "strength": 0.8
+    },
+    {
+      "condition": "MACD(收盘, params['MACD快线'], params['MACD慢线'], params['MACD信号线'])['MACD'] > MACD(收盘, params['MACD快线'], params['MACD慢线'], params['MACD信号线'])['Signal']",
+      "description": "MACD金叉确认",
+      "strength": 0.9
+    },
+    {
+      "condition": "成交量 > SMA(成交量, params['成交量均线']) * 1.2",
+      "description": "成交量放大确认",
+      "strength": 0.7
+    },
+    {
+      "condition": "收盘 > SMA(收盘, params['长期均线']) * 1.02",
+      "description": "价格明显突破长期均线",
+      "strength": 0.6
+    },
+    {
+      "condition": "ATR(最高, 最低, 收盘, params['ATR周期']) / 收盘 < 0.05",
+      "description": "波动率适中，避免过度波动",
+      "strength": 0.5
+    }
+  ],
+  "sell_conditions": [
+    {
+      "condition": "SMA(收盘, params['短期均线']) < SMA(收盘, params['长期均线']) and SMA(收盘, params['短期均线']).shift(1) >= SMA(收盘, params['长期均线']).shift(1)",
+      "description": "短期均线下穿长期均线",
+      "strength": 1.0
+    },
+    {
+      "condition": "RSI(收盘, params['RSI周期']) > 75",
+      "description": "RSI超买信号",
+      "strength": 0.8
+    },
+    {
+      "condition": "MACD(收盘, params['MACD快线'], params['MACD慢线'], params['MACD信号线'])['MACD'] < MACD(收盘, params['MACD快线'], params['MACD慢线'], params['MACD信号线'])['Signal']",
+      "description": "MACD死叉确认",
+      "strength": 0.9
+    },
+    {
+      "condition": "成交量 > SMA(成交量, params['成交量均线']) * 1.5",
+      "description": "大量抛售确认",
+      "strength": 0.7
+    }
+  ],
+  "risk_management": {
+    "stop_loss": {
+      "type": "percentage",
+      "value": "params['止损比例']",
+      "description": "固定比例止损"
+    },
+    "take_profit": {
+      "type": "percentage",
+      "value": "params['止盈比例']",
+      "description": "固定比例止盈"
+    },
+    "position_sizing": {
+      "method": "volatility_target",
+      "target_volatility": 0.15,
+      "lookback_period": 20,
+      "description": "基于波动率的仓位管理"
+    }
+  }
+}

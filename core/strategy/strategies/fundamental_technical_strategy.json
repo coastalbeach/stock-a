@@ -1,0 +1,86 @@
+{
+  "name": "基本面技术面结合策略",
+  "description": "结合财务数据和技术指标的综合策略，同时考虑行业和大盘表现",
+  "required_data": ["日期", "股票代码", "开盘", "收盘", "最高", "最低", "成交量"],
+  "parameters": {
+    "ROE阈值": {
+      "type": "number",
+      "default": 15.0,
+      "min": 5.0,
+      "max": 30.0,
+      "description": "最低ROE要求"
+    },
+    "净利润增长率": {
+      "type": "number",
+      "default": 10.0,
+      "min": 0.0,
+      "max": 50.0,
+      "description": "最低净利润同比增长率(%)"
+    },
+    "RSI周期": {
+      "type": "integer",
+      "default": 14,
+      "min": 2,
+      "max": 30,
+      "description": "RSI计算周期"
+    },
+    "均线周期": {
+      "type": "integer",
+      "default": 20,
+      "min": 5,
+      "max": 60,
+      "description": "均线计算周期"
+    },
+    "行业排名百分比": {
+      "type": "number",
+      "default": 30.0,
+      "min": 1.0,
+      "max": 100.0,
+      "description": "行业内ROE排名前N%"
+    }
+  },
+  "buy_conditions": [
+    {
+      "condition": "get_financial_ratios(股票代码)['ROE'] > params['ROE阈值'] and RSI(收盘, params['RSI周期']) < 30",
+      "description": "高ROE且RSI超卖",
+      "strength": 0.8
+    },
+    {
+      "condition": "get_financial_statement('利润表', 股票代码, limit=2)['净利润'].pct_change().iloc[0] * 100 > params['净利润增长率'] and 收盘 > SMA(收盘, params['均线周期'])",
+      "description": "净利润增长且股价站上均线",
+      "strength": 0.7
+    },
+    {
+      "condition": "get_index_quotes('000001', limit=5)['收盘'].pct_change().mean() > 0 and get_stock_info(股票代码)['所属行业'].iloc[0] in get_industry_info()['行业名称'].values",
+      "description": "大盘上涨且行业信息匹配",
+      "strength": 0.6
+    },
+    {
+      "condition": "len(get_dragon_tiger_list(股票代码, limit=5)) > 0 and get_technical_indicators(股票代码, indicators=['MACD12_26_9'], limit=1)['MACD12_26_9'].iloc[0] > 0",
+      "description": "近期上榜龙虎榜且MACD为正",
+      "strength": 0.9
+    }
+  ],
+  "sell_conditions": [
+    {
+      "condition": "RSI(收盘, params['RSI周期']) > 70",
+      "description": "RSI超买",
+      "strength": 0.6
+    },
+    {
+      "condition": "get_index_quotes('000001', limit=10)['收盘'].pct_change().mean() < -0.01",
+      "description": "大盘明显下跌",
+      "strength": 0.7
+    },
+    {
+      "condition": "收盘 < SMA(收盘, params['均线周期']) * 0.95",
+      "description": "股价跌破均线5%",
+      "strength": 0.8
+    },
+    {
+      "condition": "get_table_data('股票风险', {'风险等级': '高'}, limit=100)['股票代码'].isin([股票代码])",
+      "description": "股票进入高风险名单",
+      "strength": 1.0
+    }
+  ]
+}

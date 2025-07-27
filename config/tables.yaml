@@ -428,8 +428,8 @@ tables:
         columns: ["日期"]
 
   # 股票历史行情数据表
-  日线行情:
-    name: 日线行情
+  股票历史行情:
+    name: 股票历史行情
     description: "A股股票日线行情数据表，按股票代码HASH分区"
     partitioning:
       type: HASH

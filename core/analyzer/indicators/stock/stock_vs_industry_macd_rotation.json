@@ -1,0 +1,177 @@
+{
+  "name": "stock_vs_industry_macd_rotation",
+  "display_name": "股票相对所属行业MACD轮动",
+  "description": "基于股票MACD与其所属行业MACD的差异计算轮动信号，用于判断股票在行业内的相对强弱",
+  "version": "1.0",
+  "author": "系统",
+  "category": "轮动信号",
+  "tags": ["MACD", "轮动", "行业相对强弱", "行业轮动"],
+  
+  "data_sources": [
+    {
+      "table": "股票技术指标",
+      "columns": ["DIF", "DEA", "MACD_hist"],
+      "id_column": "股票代码",
+      "date_column": "日期",
+      "aliases": {
+        "DIF": "stock_dif",
+        "DEA": "stock_dea",
+        "MACD_hist": "stock_macd_hist"
+      },
+      "conditions": {},
+      "required": true
+    },
+    {
+      "table": "股票基础信息",
+      "columns": ["所属行业"],
+      "id_column": "股票代码",
+      "aliases": {
+        "所属行业": "industry_name"
+      },
+      "conditions": {},
+      "required": true,
+      "join_type": "left"
+    },
+    {
+      "table": "行业技术指标",
+      "columns": ["DIF", "DEA", "MACD_hist"],
+      "id_column": "行业名称",
+      "date_column": "日期",
+      "aliases": {
+        "DIF": "industry_dif",
+        "DEA": "industry_dea",
+        "MACD_hist": "industry_macd_hist"
+      },
+      "conditions": {},
+      "required": true,
+      "join_on": "industry_name"
+    }
+  ],
+  
+  "calculation": {
+    "steps": [
+      {
+        "name": "dif_diff",
+        "operation": "subtract",
+        "operand1": "stock_dif",
+        "operand2": "industry_dif",
+        "description": "计算股票DIF与行业DIF的差值"
+      },
+      {
+        "name": "dea_diff",
+        "operation": "subtract",
+        "operand1": "stock_dea",
+        "operand2": "industry_dea",
+        "description": "计算股票DEA与行业DEA的差值"
+      },
+      {
+        "name": "macd_hist_diff",
+        "operation": "subtract",
+        "operand1": "stock_macd_hist",
+        "operand2": "industry_macd_hist",
+        "description": "计算股票MACD柱状图与行业MACD柱状图的差值"
+      },
+      {
+        "name": "dif_diff_ma3",
+        "operation": "rolling_mean",
+        "series": "dif_diff",
+        "window": 3,
+        "description": "DIF差值的3日均线"
+      },
+      {
+        "name": "dif_diff_ma10",
+        "operation": "rolling_mean",
+        "series": "dif_diff",
+        "window": 10,
+        "description": "DIF差值的10日均线"
+      },
+      {
+        "name": "dif_diff_std5",
+        "operation": "rolling_std",
+        "series": "dif_diff",
+        "window": 5,
+        "description": "DIF差值的5日标准差"
+      },
+      {
+        "name": "rotation_strength",
+        "operation": "custom",
+        "formula": "np.where(dif_diff_std5 > 0, dif_diff / dif_diff_std5, 0)",
+        "description": "轮动强度：标准化的DIF差值"
+      },
+      {
+        "name": "rotation_signal",
+        "operation": "custom",
+        "formula": "np.where((dif_diff > 0) & (dea_diff > 0) & (macd_hist_diff > 0) & (rotation_strength > 1.5), 2, np.where((dif_diff < 0) & (dea_diff < 0) & (macd_hist_diff < 0) & (rotation_strength < -1.5), -2, np.where((dif_diff > 0) & (dea_diff > 0) & (rotation_strength > 0.5), 1, np.where((dif_diff < 0) & (dea_diff < 0) & (rotation_strength < -0.5), -1, 0))))",
+        "description": "行业轮动信号：2=强于行业，1=略强于行业，0=与行业同步，-1=略弱于行业，-2=弱于行业"
+      }
+    ]
+  },
+  
+  "post_processing": {
+    "dtype": "int",
+    "fill_na": 0,
+    "description": "填充缺失值为0，表示与行业同步"
+  },
+  
+  "output": {
+    "table": "股票衍生指标",
+    "columns": {
+      "相对行业DIF差值": {
+        "source": "dif_diff",
+        "data_type": "FLOAT",
+        "description": "股票DIF与所属行业DIF的差值"
+      },
+      "相对行业DEA差值": {
+        "source": "dea_diff",
+        "data_type": "FLOAT",
+        "description": "股票DEA与所属行业DEA的差值"
+      },
+      "相对行业MACD差值": {
+        "source": "macd_hist_diff",
+        "data_type": "FLOAT",
+        "description": "股票MACD柱状图与所属行业MACD柱状图的差值"
+      },
+      "相对行业轮动强度": {
+        "source": "rotation_strength",
+        "data_type": "FLOAT",
+        "description": "相对行业的轮动强度，标准化后的DIF差值"
+      },
+      "相对行业轮动信号": {
+        "source": "rotation_signal",
+        "data_type": "INTEGER",
+        "description": "相对行业的轮动信号，2=强于行业，1=略强于行业，0=与行业同步，-1=略弱于行业，-2=弱于行业"
+      }
+    }
+  },
+  
+  "validation": {
+    "min_data_points": 15,
+    "required_columns": ["stock_dif", "stock_dea", "stock_macd_hist", "industry_dif", "industry_dea", "industry_macd_hist", "industry_name"],
+    "data_quality_checks": [
+      {
+        "type": "not_null",
+        "columns": ["stock_dif", "stock_dea", "industry_dif", "industry_dea", "industry_name"],
+        "threshold": 0.8
+      },
+      {
+        "type": "range_check",
+        "column": "rotation_signal",
+        "min_value": -2,
+        "max_value": 2
+      }
+    ]
+  },
+  
+  "performance": {
+    "expected_memory_mb": 80,
+    "expected_runtime_seconds": 45,
+    "parallel_safe": true
+  },
+  
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_modified": "2024-01-01",
+    "dependencies": ["股票技术指标", "行业技术指标", "股票基础信息"],
+    "update_frequency": "daily"
+  }
+}

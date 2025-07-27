@@ -14,25 +14,25 @@ title 季度数据获取批处理程序
 color 0E
 
 :: 设置路径变量
-set "ROOT_DIR=%~dp0..\..\."
+set "ROOT_DIR=%~dp0..\..\"
 set "PYTHON_CMD=python"
 set "LOG_DIR=%ROOT_DIR%\logs"
 set "DATA_DIR=%ROOT_DIR%\data\quarterly"
 
 :: 获取当前年月日
-for /f "tokens=1-3 delims=/" %%a in ('%DATE%') do (
-    set "DAY=%%a"
-    set "MONTH=%%b"
+for /f "tokens=2 delims= " %%a in ('date /t') do set "current_date=%%a"
+for /f "tokens=1-3 delims=/" %%a in ("%current_date%") do (
+    set "MONTH=%%a"
+    set "DAY=%%b"
     set "YEAR=%%c"
 )
 
 :: 确定当前季度
-set /a MONTH_NUM=%MONTH%
-if %MONTH_NUM% LEQ 3 (
+if %MONTH% LEQ 3 (
     set "QUARTER=Q1"
-) else if %MONTH_NUM% LEQ 6 (
+) else if %MONTH% LEQ 6 (
     set "QUARTER=Q2"
-) else if %MONTH_NUM% LEQ 9 (
+) else if %MONTH% LEQ 9 (
     set "QUARTER=Q3"
 ) else (
     set "QUARTER=Q4"

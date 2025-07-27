@@ -1,0 +1,327 @@
+{
+  "name": "market_breadth",
+  "display_name": "市场宽度",
+  "description": "通过统计上涨股票数量占比来衡量市场参与度和趋势健康程度",
+  "version": "1.0",
+  "author": "系统",
+  "category": "市场分析",
+  "tags": ["市场宽度", "趋势确认", "参与度"],
+  
+  "data_sources": [
+    {
+      "table": "股票历史行情_后复权",
+      "columns": ["收盘价", "涨跌幅"],
+      "id_column": "股票代码",
+      "date_column": "日期",
+      "aliases": {
+        "收盘价": "close",
+        "涨跌幅": "pct_change"
+      },
+      "join_conditions": {
+        "table": "股票基本信息",
+        "on": "股票代码",
+        "filter": {
+          "上市状态": "正常交易",
+          "股票类型": "A股"
+        }
+      },
+      "required": true
+    },
+    {
+      "table": "指数历史行情",
+      "columns": ["收盘价", "涨跌幅"],
+      "id_column": "指数代码",
+      "date_column": "日期",
+      "aliases": {
+        "收盘价": "index_close",
+        "涨跌幅": "index_change"
+      },
+      "conditions": {
+        "指数代码": "${entity_id}"
+      },
+      "required": false
+    }
+  ],
+  
+  "calculation": {
+    "operation": "function",
+    "function": "market_breadth_calculation",
+    "args": ["pct_change"],
+    "kwargs": {
+      "smoothing_period": 5,
+      "threshold": 0.0
+    }
+  },
+  
+  "custom_functions": {
+    "market_breadth_calculation": {
+      "description": "市场宽度计算逻辑",
+      "implementation": {
+        "type": "aggregation",
+        "steps": [
+          {
+            "name": "is_up",
+            "operation": "condition",
+            "condition": {
+              "operator": ">",
+              "left": "pct_change",
+              "right": 0.0
+            },
+            "true_value": 1,
+            "false_value": 0
+          },
+          {
+            "name": "is_down",
+            "operation": "condition",
+            "condition": {
+              "operator": "<",
+              "left": "pct_change",
+              "right": 0.0
+            },
+            "true_value": 1,
+            "false_value": 0
+          },
+          {
+            "name": "is_flat",
+            "operation": "condition",
+            "condition": {
+              "operator": "==",
+              "left": "pct_change",
+              "right": 0.0
+            },
+            "true_value": 1,
+            "false_value": 0
+          },
+          {
+            "name": "total_up",
+            "operation": "function",
+            "function": "sum",
+            "args": ["is_up"],
+            "group_by": "date"
+          },
+          {
+            "name": "total_down",
+            "operation": "function",
+            "function": "sum",
+            "args": ["is_down"],
+            "group_by": "date"
+          },
+          {
+            "name": "total_flat",
+            "operation": "function",
+            "function": "sum",
+            "args": ["is_flat"],
+            "group_by": "date"
+          },
+          {
+            "name": "total_stocks",
+            "operation": "arithmetic",
+            "expression": "total_up + total_down + total_flat"
+          },
+          {
+            "name": "advance_decline_ratio",
+            "operation": "arithmetic",
+            "expression": "total_up / total_stocks"
+          },
+          {
+            "name": "net_advances",
+            "operation": "arithmetic",
+            "expression": "total_up - total_down"
+          },
+          {
+            "name": "breadth_momentum",
+            "operation": "function",
+            "function": "sma",
+            "args": ["advance_decline_ratio"],
+            "kwargs": {"period": 5}
+          },
+          {
+            "name": "breadth_oscillator",
+            "operation": "arithmetic",
+            "expression": "(advance_decline_ratio - 0.5) * 2"
+          }
+        ],
+        "return": "breadth_oscillator"
+      }
+    }
+  },
+  
+  "post_processing": {
+    "dtype": "float",
+    "fill_na": 0.0,
+    "clip": {
+      "min": -1.0,
+      "max": 1.0
+    },
+    "round": 4,
+    "description": "市场宽度振荡器，-1到1之间，正值表示上涨股票占多数"
+  },
+  
+  "output": {
+    "table": "指数衍生指标表",
+    "column": "市场宽度",
+    "data_type": "DECIMAL(10,4)",
+    "description": "市场宽度指标，范围-1到1，反映市场参与度",
+    "default_value": 0.0
+  },
+  
+  "additional_outputs": [
+    {
+      "column": "上涨股票数",
+      "source": "total_up",
+      "data_type": "INTEGER",
+      "description": "当日上涨股票数量"
+    },
+    {
+      "column": "下跌股票数",
+      "source": "total_down",
+      "data_type": "INTEGER",
+      "description": "当日下跌股票数量"
+    },
+    {
+      "column": "上涨下跌比",
+      "source": "advance_decline_ratio",
+      "data_type": "DECIMAL(10,4)",
+      "description": "上涨股票占比"
+    }
+  ],
+  
+  "validation": {
+    "min_data_points": 10,
+    "min_entities_per_group": 100,
+    "required_columns": ["pct_change"],
+    "data_quality_checks": [
+      {
+        "type": "not_null",
+        "columns": ["pct_change"]
+      },
+      {
+        "type": "range_check",
+        "columns": ["pct_change"],
+        "min": -0.2,
+        "max": 0.2,
+        "description": "涨跌幅应在合理范围内"
+      },
+      {
+        "type": "sufficient_coverage",
+        "description": "确保有足够的股票样本",
+        "min_coverage_ratio": 0.8
+      }
+    ]
+  },
+  
+  "parameters": {
+    "smoothing_period": {
+      "default": 5,
+      "description": "平滑周期",
+      "type": "int",
+      "min": 1,
+      "max": 20
+    },
+    "threshold": {
+      "default": 0.0,
+      "description": "上涨下跌判断阈值",
+      "type": "float",
+      "min": -0.01,
+      "max": 0.01
+    },
+    "min_stocks": {
+      "default": 100,
+      "description": "最少股票数量要求",
+      "type": "int",
+      "min": 50,
+      "max": 5000
+    }
+  },
+  
+  "applicable_entities": ["index"],
+  "frequency": ["daily"],
+  
+  "performance": {
+    "complexity": "high",
+    "estimated_time_per_entity": "3.0s",
+    "memory_usage": "high",
+    "notes": "需要处理大量股票数据，内存和计算需求较高"
+  },
+  
+  "dependencies": {
+    "indicators": [],
+    "tables": ["股票日线数据表", "股票基本信息表", "指数数据表"]
+  },
+  
+  "aggregation_config": {
+    "group_by": ["日期"],
+    "entity_filter": {
+      "table": "股票基本信息表",
+      "condition": "上市状态 = '正常交易' AND 股票类型 = 'A股'"
+    },
+    "min_entities": 100,
+    "exclude_conditions": [
+      "ST股票",
+      "停牌股票",
+      "新股（上市不足30天）"
+    ]
+  },
+  
+  "interpretation": {
+    "ranges": [
+      {
+        "min": 0.6,
+        "max": 1.0,
+        "description": "强势市场，大多数股票上涨",
+        "signal": "bullish"
+      },
+      {
+        "min": 0.2,
+        "max": 0.6,
+        "description": "中性偏强市场",
+        "signal": "neutral_bullish"
+      },
+      {
+        "min": -0.2,
+        "max": 0.2,
+        "description": "中性市场，涨跌平衡",
+        "signal": "neutral"
+      },
+      {
+        "min": -0.6,
+        "max": -0.2,
+        "description": "中性偏弱市场",
+        "signal": "neutral_bearish"
+      },
+      {
+        "min": -1.0,
+        "max": -0.6,
+        "description": "弱势市场，大多数股票下跌",
+        "signal": "bearish"
+      }
+    ]
+  },
+  
+  "examples": [
+    {
+      "description": "强势市场示例",
+      "input": {
+        "stocks_pct_change": [0.02, 0.01, 0.03, -0.01, 0.015],
+        "total_stocks": 5
+      },
+      "expected_output": 0.6
+    },
+    {
+      "description": "弱势市场示例",
+      "input": {
+        "stocks_pct_change": [-0.02, -0.01, -0.03, 0.01, -0.015],
+        "total_stocks": 5
+      },
+      "expected_output": -0.6
+    }
+  ],
+  
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_modified": "2024-01-01",
+    "test_status": "passed",
+    "documentation_url": "https://example.com/docs/market_breadth",
+    "related_indicators": ["advance_decline_line", "mcclellan_oscillator"]
+  }
+}

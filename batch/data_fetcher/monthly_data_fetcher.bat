@@ -14,17 +14,21 @@ title 月度数据获取批处理程序
 color 0B
 
 :: 设置路径变量
-set "ROOT_DIR=%~dp0..\..\."
+set "ROOT_DIR=%~dp0..\..\"
 set "PYTHON_CMD=python"
 set "LOG_DIR=%ROOT_DIR%\logs"
 set "DATA_DIR=%ROOT_DIR%\data\monthly"
 
 :: 获取当前年月（格式：YYYYMM）
-for /f "tokens=1-3 delims=/" %%a in ('%DATE%') do (
-    set "DAY=%%a"
-    set "MONTH=%%b"
+for /f "tokens=2 delims= " %%a in ('date /t') do set "current_date=%%a"
+for /f "tokens=1-3 delims=/" %%a in ("%current_date%") do (
+    set "MONTH=%%a"
+    set "DAY=%%b"
     set "YEAR=%%c"
 )
+
+:: 补零处理
+if %MONTH% LSS 10 set "MONTH=0%MONTH%"
 set "CURRENT_MONTH=%YEAR%%MONTH%"
 
 :: 创建日志目录

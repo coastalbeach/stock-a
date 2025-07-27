@@ -1,0 +1,201 @@
+{
+  "name": "stock_vs_market_macd_rotation",
+  "display_name": "股票相对所属市场MACD轮动",
+  "description": "基于股票MACD与其所属市场指数MACD的差异计算轮动信号，用于判断股票在市场内的相对强弱",
+  "version": "1.0",
+  "author": "系统",
+  "category": "轮动信号",
+  "tags": ["MACD", "轮动", "市场相对强弱", "市场轮动"],
+  
+  "data_sources": [
+    {
+      "table": "股票技术指标",
+      "columns": ["DIF", "DEA", "MACD_hist"],
+      "id_column": "股票代码",
+      "date_column": "日期",
+      "aliases": {
+        "DIF": "stock_dif",
+        "DEA": "stock_dea",
+        "MACD_hist": "stock_macd_hist"
+      },
+      "conditions": {},
+      "required": true
+    },
+    {
+      "table": "股票基础信息",
+      "columns": ["市场"],
+      "id_column": "股票代码",
+      "aliases": {
+        "市场": "market_type"
+      },
+      "conditions": {},
+      "required": true,
+      "join_type": "left"
+    },
+    {
+      "table": "指数技术指标",
+      "columns": ["DIF", "DEA", "MACD_hist"],
+      "id_column": "指数代码",
+      "date_column": "日期",
+      "aliases": {
+        "DIF": "market_dif",
+        "DEA": "market_dea",
+        "MACD_hist": "market_macd_hist"
+      },
+      "conditions": {},
+      "required": true,
+      "market_mapping": {
+        "沪A": "000001",
+        "深A": "399001",
+        "创业": "399006",
+        "科创": "000688",
+        "京A": "899050"
+      }
+    }
+  ],
+  
+  "calculation": {
+    "steps": [
+      {
+        "name": "market_index_mapping",
+        "operation": "custom",
+        "formula": "market_type.map({'沪A': '000001', '深A': '399001', '创业': '399006', '科创': '000688', '京A': '899050'})",
+        "description": "将市场类型映射为对应的指数代码"
+      },
+      {
+        "name": "dif_diff",
+        "operation": "subtract",
+        "operand1": "stock_dif",
+        "operand2": "market_dif",
+        "description": "计算股票DIF与市场指数DIF的差值"
+      },
+      {
+        "name": "dea_diff",
+        "operation": "subtract",
+        "operand1": "stock_dea",
+        "operand2": "market_dea",
+        "description": "计算股票DEA与市场指数DEA的差值"
+      },
+      {
+        "name": "macd_hist_diff",
+        "operation": "subtract",
+        "operand1": "stock_macd_hist",
+        "operand2": "market_macd_hist",
+        "description": "计算股票MACD柱状图与市场指数MACD柱状图的差值"
+      },
+      {
+        "name": "dif_diff_ema3",
+        "operation": "ewm_mean",
+        "series": "dif_diff",
+        "span": 3,
+        "description": "DIF差值的3日指数移动平均"
+      },
+      {
+        "name": "dif_diff_ema12",
+        "operation": "ewm_mean",
+        "series": "dif_diff",
+        "span": 12,
+        "description": "DIF差值的12日指数移动平均"
+      },
+      {
+        "name": "momentum_signal",
+        "operation": "custom",
+        "formula": "np.where(dif_diff_ema3 > dif_diff_ema12, 1, np.where(dif_diff_ema3 < dif_diff_ema12, -1, 0))",
+        "description": "动量信号：短期EMA与长期EMA的关系"
+      },
+      {
+        "name": "dif_diff_percentile",
+        "operation": "rolling_rank",
+        "series": "dif_diff",
+        "window": 20,
+        "pct": true,
+        "description": "DIF差值在20日内的百分位排名"
+      },
+      {
+        "name": "rotation_signal",
+        "operation": "custom",
+        "formula": "np.where((dif_diff > 0) & (dea_diff > 0) & (macd_hist_diff > 0) & (momentum_signal > 0) & (dif_diff_percentile > 0.8), 2, np.where((dif_diff < 0) & (dea_diff < 0) & (macd_hist_diff < 0) & (momentum_signal < 0) & (dif_diff_percentile < 0.2), -2, np.where((dif_diff > 0) & (momentum_signal > 0) & (dif_diff_percentile > 0.6), 1, np.where((dif_diff < 0) & (momentum_signal < 0) & (dif_diff_percentile < 0.4), -1, 0))))",
+        "description": "市场轮动信号：2=强于市场，1=略强于市场，0=与市场同步，-1=略弱于市场，-2=弱于市场"
+      }
+    ]
+  },
+  
+  "post_processing": {
+    "dtype": "int",
+    "fill_na": 0,
+    "description": "填充缺失值为0，表示与市场同步"
+  },
+  
+  "output": {
+    "table": "股票衍生指标",
+    "columns": {
+      "相对市场DIF差值": {
+        "source": "dif_diff",
+        "data_type": "FLOAT",
+        "description": "股票DIF与所属市场指数DIF的差值"
+      },
+      "相对市场DEA差值": {
+        "source": "dea_diff",
+        "data_type": "FLOAT",
+        "description": "股票DEA与所属市场指数DEA的差值"
+      },
+      "相对市场MACD差值": {
+        "source": "macd_hist_diff",
+        "data_type": "FLOAT",
+        "description": "股票MACD柱状图与所属市场指数MACD柱状图的差值"
+      },
+      "相对市场动量信号": {
+        "source": "momentum_signal",
+        "data_type": "INTEGER",
+        "description": "相对市场的动量信号，1=上升动量，0=中性，-1=下降动量"
+      },
+      "相对市场强度排名": {
+        "source": "dif_diff_percentile",
+        "data_type": "FLOAT",
+        "description": "DIF差值在20日内的百分位排名，0-1之间"
+      },
+      "相对市场轮动信号": {
+        "source": "rotation_signal",
+        "data_type": "INTEGER",
+        "description": "相对市场的轮动信号，2=强于市场，1=略强于市场，0=与市场同步，-1=略弱于市场，-2=弱于市场"
+      }
+    }
+  },
+  
+  "validation": {
+    "min_data_points": 25,
+    "required_columns": ["stock_dif", "stock_dea", "stock_macd_hist", "market_dif", "market_dea", "market_macd_hist", "market_type"],
+    "data_quality_checks": [
+      {
+        "type": "not_null",
+        "columns": ["stock_dif", "stock_dea", "market_dif", "market_dea", "market_type"],
+        "threshold": 0.8
+      },
+      {
+        "type": "range_check",
+        "column": "rotation_signal",
+        "min_value": -2,
+        "max_value": 2
+      },
+      {
+        "type": "range_check",
+        "column": "dif_diff_percentile",
+        "min_value": 0,
+        "max_value": 1
+      }
+    ]
+  },
+  
+  "performance": {
+    "expected_memory_mb": 70,
+    "expected_runtime_seconds": 40,
+    "parallel_safe": true
+  },
+  
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_modified": "2024-01-01",
+    "dependencies": ["股票技术指标", "指数技术指标", "股票基础信息"],
+    "update_frequency": "daily"
+  }
+}

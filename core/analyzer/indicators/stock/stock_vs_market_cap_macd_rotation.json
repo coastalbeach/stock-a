@@ -1,0 +1,236 @@
+{
+  "name": "stock_vs_market_cap_macd_rotation",
+  "display_name": "股票相对市值等级MACD轮动",
+  "description": "基于股票MACD与同市值等级股票平均MACD的差异计算轮动信号，用于判断股票在同等市值股票中的相对强弱",
+  "version": "1.0",
+  "author": "系统",
+  "category": "轮动信号",
+  "tags": ["MACD", "轮动", "市值等级", "相对强弱"],
+  
+  "data_sources": [
+    {
+      "table": "股票技术指标",
+      "columns": ["DIF", "DEA", "MACD_hist"],
+      "id_column": "股票代码",
+      "date_column": "日期",
+      "aliases": {
+        "DIF": "stock_dif",
+        "DEA": "stock_dea",
+        "MACD_hist": "stock_macd_hist"
+      },
+      "conditions": {},
+      "required": true
+    },
+    {
+      "table": "股票基础信息",
+      "columns": ["市值等级"],
+      "id_column": "股票代码",
+      "aliases": {
+        "市值等级": "market_cap_level"
+      },
+      "conditions": {},
+      "required": true,
+      "join_type": "left"
+    },
+    {
+      "table": "指数技术指标",
+      "columns": ["DIF", "DEA", "MACD_hist"],
+      "id_column": "指数代码",
+      "date_column": "日期",
+      "aliases": {
+        "DIF": "index_dif",
+        "DEA": "index_dea",
+        "MACD_hist": "index_macd_hist"
+      },
+      "conditions": {},
+      "required": false,
+      "market_cap_mapping": {
+        "大盘股": "000300",
+        "中盘股": "000905",
+        "小盘股": "000852",
+        "微盘股": "000852"
+      }
+    }
+  ],
+  
+  "calculation": {
+    "steps": [
+      {
+        "name": "market_cap_dif_mean",
+        "operation": "group_mean",
+        "series": "stock_dif",
+        "group_by": ["market_cap_level", "日期"],
+        "description": "按市值等级和日期分组计算DIF均值"
+      },
+      {
+        "name": "market_cap_dea_mean",
+        "operation": "group_mean",
+        "series": "stock_dea",
+        "group_by": ["market_cap_level", "日期"],
+        "description": "按市值等级和日期分组计算DEA均值"
+      },
+      {
+        "name": "market_cap_macd_hist_mean",
+        "operation": "group_mean",
+        "series": "stock_macd_hist",
+        "group_by": ["market_cap_level", "日期"],
+        "description": "按市值等级和日期分组计算MACD柱状图均值"
+      },
+      {
+        "name": "dif_diff",
+        "operation": "subtract",
+        "operand1": "stock_dif",
+        "operand2": "market_cap_dif_mean",
+        "description": "计算股票DIF与同市值等级DIF均值的差值"
+      },
+      {
+        "name": "dea_diff",
+        "operation": "subtract",
+        "operand1": "stock_dea",
+        "operand2": "market_cap_dea_mean",
+        "description": "计算股票DEA与同市值等级DEA均值的差值"
+      },
+      {
+        "name": "macd_hist_diff",
+        "operation": "subtract",
+        "operand1": "stock_macd_hist",
+        "operand2": "market_cap_macd_hist_mean",
+        "description": "计算股票MACD柱状图与同市值等级MACD柱状图均值的差值"
+      },
+      {
+        "name": "dif_diff_zscore",
+        "operation": "rolling_zscore",
+        "series": "dif_diff",
+        "window": 20,
+        "description": "DIF差值的20日Z-Score标准化"
+      },
+      {
+        "name": "dea_diff_zscore",
+        "operation": "rolling_zscore",
+        "series": "dea_diff",
+        "window": 20,
+        "description": "DEA差值的20日Z-Score标准化"
+      },
+      {
+        "name": "macd_hist_diff_zscore",
+        "operation": "rolling_zscore",
+        "series": "macd_hist_diff",
+        "window": 20,
+        "description": "MACD柱状图差值的20日Z-Score标准化"
+      },
+      {
+        "name": "composite_score",
+        "operation": "custom",
+        "formula": "(dif_diff_zscore * 0.4 + dea_diff_zscore * 0.3 + macd_hist_diff_zscore * 0.3)",
+        "description": "综合评分：加权平均的Z-Score"
+      },
+      {
+        "name": "composite_score_ma5",
+        "operation": "rolling_mean",
+        "series": "composite_score",
+        "window": 5,
+        "description": "综合评分的5日移动平均"
+      },
+      {
+        "name": "rotation_signal",
+        "operation": "custom",
+        "formula": "np.where((composite_score > 1.5) & (composite_score_ma5 > 1.0) & (dif_diff > 0) & (dea_diff > 0), 2, np.where((composite_score < -1.5) & (composite_score_ma5 < -1.0) & (dif_diff < 0) & (dea_diff < 0), -2, np.where((composite_score > 0.8) & (composite_score_ma5 > 0.5), 1, np.where((composite_score < -0.8) & (composite_score_ma5 < -0.5), -1, 0))))",
+        "description": "市值等级轮动信号：2=强于同级，1=略强于同级，0=与同级同步，-1=略弱于同级，-2=弱于同级"
+      }
+    ]
+  },
+  
+  "post_processing": {
+    "dtype": "int",
+    "fill_na": 0,
+    "description": "填充缺失值为0，表示与同市值等级同步"
+  },
+  
+  "output": {
+    "table": "股票衍生指标",
+    "columns": {
+      "相对市值等级DIF差值": {
+        "source": "dif_diff",
+        "data_type": "FLOAT",
+        "description": "股票DIF与同市值等级DIF均值的差值"
+      },
+      "相对市值等级DEA差值": {
+        "source": "dea_diff",
+        "data_type": "FLOAT",
+        "description": "股票DEA与同市值等级DEA均值的差值"
+      },
+      "相对市值等级MACD差值": {
+        "source": "macd_hist_diff",
+        "data_type": "FLOAT",
+        "description": "股票MACD柱状图与同市值等级MACD柱状图均值的差值"
+      },
+      "相对市值等级DIF标准分": {
+        "source": "dif_diff_zscore",
+        "data_type": "FLOAT",
+        "description": "DIF差值的标准化分数"
+      },
+      "相对市值等级DEA标准分": {
+        "source": "dea_diff_zscore",
+        "data_type": "FLOAT",
+        "description": "DEA差值的标准化分数"
+      },
+      "相对市值等级MACD标准分": {
+        "source": "macd_hist_diff_zscore",
+        "data_type": "FLOAT",
+        "description": "MACD柱状图差值的标准化分数"
+      },
+      "相对市值等级综合评分": {
+        "source": "composite_score",
+        "data_type": "FLOAT",
+        "description": "相对市值等级的综合评分"
+      },
+      "相对市值等级轮动信号": {
+        "source": "rotation_signal",
+        "data_type": "INTEGER",
+        "description": "相对市值等级的轮动信号，2=强于同级，1=略强于同级，0=与同级同步，-1=略弱于同级，-2=弱于同级"
+      }
+    }
+  },
+  
+  "validation": {
+    "min_data_points": 25,
+    "required_columns": ["stock_dif", "stock_dea", "stock_macd_hist", "market_cap_level"],
+    "data_quality_checks": [
+      {
+        "type": "not_null",
+        "columns": ["stock_dif", "stock_dea", "market_cap_level"],
+        "threshold": 0.8
+      },
+      {
+        "type": "range_check",
+        "column": "rotation_signal",
+        "min_value": -2,
+        "max_value": 2
+      },
+      {
+        "type": "valid_values",
+        "column": "market_cap_level",
+        "values": ["微盘股", "小盘股", "中盘股", "大盘股"]
+      }
+    ],
+    "market_cap_index_mapping": {
+      "大盘股": "000300",
+      "中盘股": "000905",
+      "小盘股": "000852",
+      "微盘股": "000852"
+    }
+  },
+  
+  "performance": {
+    "expected_memory_mb": 100,
+    "expected_runtime_seconds": 60,
+    "parallel_safe": true
+  },
+  
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_modified": "2024-01-01",
+    "dependencies": ["股票技术指标", "股票基础信息"],
+    "update_frequency": "daily"
+  }
+}

@@ -437,7 +437,18 @@ class JSONStrategy(StrategyBase):
             'HIGHEST': lambda data, period: data.rolling(window=period).max(),
             'LOWEST': lambda data, period: data.rolling(window=period).min(),
             # 添加参数
-            'params': self.param_values
+            'params': self.param_values,
+            # 添加多元数据访问方法
+            'get_stock_quotes': self.get_stock_quotes,
+            'get_technical_indicators': self.get_technical_indicators,
+            'get_financial_statement': self.get_financial_statement,
+            'get_financial_ratios': self.get_financial_ratios,
+            'get_stock_info': self.get_stock_info,
+            'get_industry_info': self.get_industry_info,
+            'get_concept_info': self.get_concept_info,
+            'get_index_quotes': self.get_index_quotes,
+            'get_dragon_tiger_list': self.get_dragon_tiger_list,
+            'get_table_data': self.get_table_data
         }
         return env
     

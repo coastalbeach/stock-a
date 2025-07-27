@@ -1,0 +1,244 @@
+# 批量股票历史数据爬虫配置文件
+
+# 爬虫基本配置
+crawler:
+  # 最大并发线程数
+  max_workers: 8
+  
+  # 批量处理大小
+  batch_size: 50
+  
+  # 请求间隔(秒)，避免请求过于频繁
+  request_interval: 0.1
+  
+  # 请求超时时间(秒)
+  request_timeout: 30
+  
+  # 最大重试次数
+  max_retries: 3
+  
+  # 重试间隔(秒)
+  retry_interval: 1
+
+# 数据源配置
+data_source:
+  # 主要数据源
+  primary: "eastmoney"
+  
+  # 备用数据源
+  fallback: ["sina", "tencent"]
+  
+  # 东方财富配置
+  eastmoney:
+    base_url: "http://push2his.eastmoney.com/api/qt/stock/kline/get"
+    headers:
+      User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  
+  # 新浪财经配置
+  sina:
+    base_url: "https://finance.sina.com.cn"
+    headers:
+      User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  
+  # 腾讯财经配置
+  tencent:
+    base_url: "https://web.ifzq.gtimg.cn"
+    headers:
+      User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+# 数据处理配置
+data_processing:
+  # 复权类型
+  adjust_types:
+    - ""      # 不复权
+    - "hfq"   # 后复权
+    # - "qfq"   # 前复权(可选)
+  
+  # 数据验证
+  validation:
+    # 是否验证数据完整性
+    enable: true
+    
+    # 最小数据量(条)
+    min_records: 1
+    
+    # 价格范围验证
+    price_range:
+      min: 0.01
+      max: 10000
+    
+    # 成交量范围验证
+    volume_range:
+      min: 0
+      max: 1000000000000
+
+# 数据库配置
+database:
+  # 批量插入大小
+  batch_insert_size: 1000
+  
+  # 连接池配置
+  connection_pool:
+    min_connections: 2
+    max_connections: 10
+    
+  # 数据保留策略
+  retention:
+    # 是否启用数据清理
+    enable: false
+    
+    # 保留天数
+    days: 1095  # 3年
+
+# 缓存配置
+cache:
+  # 是否启用Redis缓存
+  enable: true
+  
+  # 缓存过期时间(秒)
+  expire_time: 3600  # 1小时
+  
+  # 缓存键前缀
+  key_prefix: "stock_hist"
+  
+  # 股票列表缓存时间(秒)
+  stock_list_cache_time: 86400  # 24小时
+
+# 日志配置
+logging:
+  # 日志级别
+  level: "INFO"
+  
+  # 是否输出到控制台
+  console: true
+  
+  # 是否输出到文件
+  file: true
+  
+  # 日志文件路径
+  file_path: "logs/batch_crawler.log"
+  
+  # 日志文件大小限制(MB)
+  max_file_size: 100
+  
+  # 保留日志文件数量
+  backup_count: 5
+  
+  # 日志格式
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# 监控配置
+monitoring:
+  # 是否启用性能监控
+  enable: true
+  
+  # 统计间隔(秒)
+  stats_interval: 60
+  
+  # 是否发送邮件通知
+  email_notification: false
+  
+  # 邮件配置
+  email:
+    smtp_server: "smtp.qq.com"
+    smtp_port: 587
+    username: ""
+    password: ""
+    from_addr: ""
+    to_addrs: []
+
+# 调度配置
+scheduler:
+  # 是否启用定时任务
+  enable: false
+  
+  # 定时任务配置
+  jobs:
+    # 每日增量更新
+    daily_update:
+      # cron表达式: 每天早上6点执行
+      cron: "0 6 * * *"
+      enabled: true
+      description: "每日增量更新股票历史数据"
+    
+    # 每周全量更新
+    weekly_full_update:
+      # cron表达式: 每周日凌晨2点执行
+      cron: "0 2 * * 0"
+      enabled: false
+      description: "每周全量更新股票历史数据"
+
+# 股票过滤配置
+stock_filter:
+  # 是否启用股票过滤
+  enable: true
+  
+  # 包含的股票类型
+  include_types:
+    - "主板"     # 主板股票
+    - "中小板"   # 中小板股票
+    - "创业板"   # 创业板股票
+    - "科创板"   # 科创板股票
+  
+  # 排除的股票类型
+  exclude_types:
+    - "ST"       # ST股票
+    - "*ST"      # *ST股票
+    - "退市"     # 退市股票
+  
+  # 最小市值过滤(亿元)
+  min_market_cap: 0
+  
+  # 最小成交额过滤(万元)
+  min_turnover: 0
+
+# 错误处理配置
+error_handling:
+  # 是否继续处理其他股票(当某只股票失败时)
+  continue_on_error: true
+  
+  # 错误重试策略
+  retry_strategy:
+    # 指数退避
+    exponential_backoff: true
+    
+    # 基础延迟时间(秒)
+    base_delay: 1
+    
+    # 最大延迟时间(秒)
+    max_delay: 60
+  
+  # 失败股票重试
+  failed_stock_retry:
+    # 是否启用
+    enable: true
+    
+    # 重试次数
+    max_attempts: 3
+    
+    # 重试间隔(分钟)
+    retry_interval: 30
+
+# 性能优化配置
+performance:
+  # 内存使用优化
+  memory_optimization:
+    # 是否启用
+    enable: true
+    
+    # 数据分块大小
+    chunk_size: 10000
+    
+    # 垃圾回收间隔
+    gc_interval: 100
+  
+  # 网络优化
+  network_optimization:
+    # 连接池大小
+    connection_pool_size: 20
+    
+    # 保持连接时间(秒)
+    keep_alive_timeout: 30
+    
+    # 是否启用压缩
+    compression: true

@@ -1,292 +1,313 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-主窗口模块
-整合各个视图组件，提供应用程序的主界面框架
+主窗口 - A股量化分析系统
+参考同花顺iFinder等专业财经软件设计
 """
 
 import sys
-import os
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QTabWidget, QVBoxLayout, 
-                             QWidget, QStatusBar, QToolBar, QMenuBar, QMenu, 
-                             QMessageBox, QFileDialog, QDockWidget)
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QAction, QIcon
-from pathlib import Path
+from PyQt6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+    QSplitter, QTabWidget, QDockWidget, QMenuBar, 
+    QToolBar, QStatusBar, QApplication, QMessageBox
+)
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QAction, QIcon, QKeySequence
 
-# 添加项目根目录到系统路径
-project_root = str(Path(__file__).parent.parent)
+from pathlib import Path
+project_root = str(Path(__file__).resolve().parent.parent) 
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-# 导入视图组件
-from data_view import DataView
-from chart_view import ChartView
-from strategy_view import StrategyView
-from association_rule_view import AssociationRuleView
+from ui.widgets.stock_selector import StockSelector
+from ui.widgets.chart_widget import ChartWidget
+from ui.widgets.data_table import DataTableWidget
+from ui.widgets.info_panel import InfoPanel
+from ui.widgets.strategy_panel import StrategyPanel
+from ui.dialogs.settings_dialog import SettingsDialog
+from ui.styles.theme_manager import ThemeManager
 
-# 导入工具模块
-import utils.logger as logger
-import utils.config_loader as config
 
 class MainWindow(QMainWindow):
-    """A股量化分析系统主窗口"""
+    """
+    主窗口类
+    实现专业财经软件的多面板布局
+    """
+    
+    # 信号定义
+    stock_selected = pyqtSignal(str)  # 股票选择信号
+    theme_changed = pyqtSignal(str)   # 主题切换信号
     
     def __init__(self):
         super().__init__()
-        
-        # 设置窗口基本属性
-        self.setWindowTitle("A股量化分析系统")
-        self.setMinimumSize(1200, 800)
-        
-        # 初始化UI组件
+        self.theme_manager = ThemeManager()
         self.init_ui()
+        self.setup_connections()
+        self.setup_timer()
         
-        # 连接信号和槽
-        self.connect_signals_slots()
-        
-        # 加载配置
-        self.load_config()
-        
-        # 显示状态栏消息
-        self.statusBar().showMessage("系统就绪")
-    
     def init_ui(self):
-        """初始化UI组件"""
-        # 创建中央部件和布局
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-        self.main_layout = QVBoxLayout(self.central_widget)
+        """初始化用户界面"""
+        self.setWindowTitle("A股量化分析系统 v0.1.0")
+        self.setGeometry(100, 100, 1600, 900)
         
-        # 创建标签页控件
+        # 设置中央部件
+        self.setup_central_widget()
+        
+        # 设置停靠面板
+        self.setup_dock_widgets()
+        
+        # 设置菜单栏
+        self.setup_menu_bar()
+        
+        # 设置工具栏
+        self.setup_tool_bar()
+        
+        # 设置状态栏
+        self.setup_status_bar()
+        
+        # 应用主题
+        self.theme_manager.apply_to_widget(self, "dark")
+        
+    def setup_central_widget(self):
+        """设置中央部件 - 主要图表区域"""
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        
+        # 创建主布局
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # 创建标签页组件
         self.tab_widget = QTabWidget()
-        self.main_layout.addWidget(self.tab_widget)
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.setMovable(True)
         
-        # 创建各个视图
-        self.data_view = DataView()
-        self.chart_view = ChartView()
-        self.strategy_view = StrategyView()
-        self.association_rule_view = AssociationRuleView()
+        # 添加默认图表标签页
+        self.main_chart = ChartWidget()
+        self.tab_widget.addTab(self.main_chart, "主图表")
         
-        # 添加视图到标签页
-        self.tab_widget.addTab(self.data_view, "数据浏览")
-        self.tab_widget.addTab(self.chart_view, "图表分析")
-        self.tab_widget.addTab(self.strategy_view, "策略回测")
-        self.tab_widget.addTab(self.association_rule_view, "关联规则挖掘")
+        main_layout.addWidget(self.tab_widget)
         
-        # 创建状态栏
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
+    def setup_dock_widgets(self):
+        """设置停靠面板"""
+        # 左侧股票选择器
+        self.stock_dock = QDockWidget("股票选择", self)
+        self.stock_selector = StockSelector()
+        self.stock_dock.setWidget(self.stock_selector)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.stock_dock)
         
-        # 创建菜单栏
-        self.create_menus()
+        # 右侧信息面板
+        self.info_dock = QDockWidget("股票信息", self)
+        self.info_panel = InfoPanel()
+        self.info_dock.setWidget(self.info_panel)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.info_dock)
         
-        # 创建工具栏
-        self.create_toolbars()
-    
-    def create_menus(self):
-        """创建菜单栏"""
+        # 右侧策略面板
+        self.strategy_dock = QDockWidget("策略管理", self)
+        self.strategy_panel = StrategyPanel()
+        self.strategy_dock.setWidget(self.strategy_panel)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.strategy_dock)
+        
+        # 底部数据表格
+        self.data_dock = QDockWidget("数据表格", self)
+        self.data_table = DataTableWidget()
+        self.data_dock.setWidget(self.data_table)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.data_dock)
+        
+        # 设置停靠面板的初始大小
+        self.resizeDocks([self.stock_dock], [300], Qt.Orientation.Horizontal)
+        self.resizeDocks([self.info_dock, self.strategy_dock], [250, 250], Qt.Orientation.Horizontal)
+        self.resizeDocks([self.data_dock], [200], Qt.Orientation.Vertical)
+        
+    def setup_menu_bar(self):
+        """设置菜单栏"""
+        menubar = self.menuBar()
+        
         # 文件菜单
-        file_menu = self.menuBar().addMenu("文件")
+        file_menu = menubar.addMenu('文件(&F)')
         
-        # 退出动作
-        exit_action = QAction("退出", self)
-        exit_action.setShortcut("Ctrl+Q")
+        # 新建工作区
+        new_action = QAction('新建工作区(&N)', self)
+        new_action.setShortcut(QKeySequence.StandardKey.New)
+        new_action.triggered.connect(self.new_workspace)
+        file_menu.addAction(new_action)
+        
+        # 打开工作区
+        open_action = QAction('打开工作区(&O)', self)
+        open_action.setShortcut(QKeySequence.StandardKey.Open)
+        open_action.triggered.connect(self.open_workspace)
+        file_menu.addAction(open_action)
+        
+        file_menu.addSeparator()
+        
+        # 退出
+        exit_action = QAction('退出(&X)', self)
+        exit_action.setShortcut(QKeySequence.StandardKey.Quit)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
         
-        # 数据菜单
-        data_menu = self.menuBar().addMenu("数据")
+        # 视图菜单
+        view_menu = menubar.addMenu('视图(&V)')
         
-        # 刷新数据动作
-        refresh_action = QAction("刷新数据", self)
-        refresh_action.setShortcut("F5")
-        refresh_action.triggered.connect(self.refresh_data)
-        data_menu.addAction(refresh_action)
+        # 面板显示控制
+        view_menu.addAction(self.stock_dock.toggleViewAction())
+        view_menu.addAction(self.info_dock.toggleViewAction())
+        view_menu.addAction(self.strategy_dock.toggleViewAction())
+        view_menu.addAction(self.data_dock.toggleViewAction())
         
-        # 导入数据动作
-        import_action = QAction("导入数据", self)
-        import_action.triggered.connect(self.import_data)
-        data_menu.addAction(import_action)
+        view_menu.addSeparator()
         
-        # 导出数据动作
-        export_action = QAction("导出数据", self)
-        export_action.triggered.connect(self.export_data)
-        data_menu.addAction(export_action)
+        # 主题切换
+        theme_menu = view_menu.addMenu('主题')
         
-        # 分析菜单
-        analysis_menu = self.menuBar().addMenu("分析")
+        dark_theme_action = QAction('深色主题', self)
+        dark_theme_action.triggered.connect(lambda: self.change_theme('dark'))
+        theme_menu.addAction(dark_theme_action)
         
-        # 技术分析动作
-        tech_analysis_action = QAction("技术分析", self)
-        tech_analysis_action.triggered.connect(self.show_tech_analysis)
-        analysis_menu.addAction(tech_analysis_action)
+        light_theme_action = QAction('浅色主题', self)
+        light_theme_action.triggered.connect(lambda: self.change_theme('light'))
+        theme_menu.addAction(light_theme_action)
         
-        # 基本面分析动作
-        fund_analysis_action = QAction("基本面分析", self)
-        fund_analysis_action.triggered.connect(self.show_fund_analysis)
-        analysis_menu.addAction(fund_analysis_action)
+        # 工具菜单
+        tools_menu = menubar.addMenu('工具(&T)')
         
-        # 市场分析动作
-        market_analysis_action = QAction("市场分析", self)
-        market_analysis_action.triggered.connect(self.show_market_analysis)
-        analysis_menu.addAction(market_analysis_action)
-        
-        # 策略菜单
-        strategy_menu = self.menuBar().addMenu("策略")
-        
-        # 新建策略动作
-        new_strategy_action = QAction("新建策略", self)
-        new_strategy_action.triggered.connect(self.create_new_strategy)
-        strategy_menu.addAction(new_strategy_action)
-        
-        # 运行回测动作
-        run_backtest_action = QAction("运行回测", self)
-        run_backtest_action.triggered.connect(self.run_backtest)
-        strategy_menu.addAction(run_backtest_action)
+        # 设置
+        settings_action = QAction('设置(&S)', self)
+        settings_action.triggered.connect(self.show_settings)
+        tools_menu.addAction(settings_action)
         
         # 帮助菜单
-        help_menu = self.menuBar().addMenu("帮助")
+        help_menu = menubar.addMenu('帮助(&H)')
         
-        # 关于动作
-        about_action = QAction("关于", self)
-        about_action.triggered.connect(self.show_about_dialog)
+        # 关于
+        about_action = QAction('关于(&A)', self)
+        about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
-    
-    def create_toolbars(self):
-        """创建工具栏"""
-        # 主工具栏
-        main_toolbar = QToolBar("主工具栏")
-        main_toolbar.setIconSize(QSize(24, 24))
-        self.addToolBar(main_toolbar)
         
-        # 添加刷新数据按钮
-        refresh_action = QAction("刷新", self)
-        refresh_action.setStatusTip("刷新数据")
+    def setup_tool_bar(self):
+        """设置工具栏"""
+        toolbar = QToolBar("主工具栏")
+        self.addToolBar(toolbar)
+        
+        # 刷新数据
+        refresh_action = QAction('刷新', self)
+        refresh_action.setToolTip('刷新当前数据')
         refresh_action.triggered.connect(self.refresh_data)
-        main_toolbar.addAction(refresh_action)
+        toolbar.addAction(refresh_action)
         
-        # 添加分隔符
-        main_toolbar.addSeparator()
+        toolbar.addSeparator()
         
-        # 添加技术分析按钮
-        tech_analysis_action = QAction("技术分析", self)
-        tech_analysis_action.setStatusTip("打开技术分析视图")
-        tech_analysis_action.triggered.connect(self.show_tech_analysis)
-        main_toolbar.addAction(tech_analysis_action)
+        # 开始/停止实时数据
+        self.realtime_action = QAction('开始实时', self)
+        self.realtime_action.setToolTip('开始/停止实时数据更新')
+        self.realtime_action.setCheckable(True)
+        self.realtime_action.triggered.connect(self.toggle_realtime)
+        toolbar.addAction(self.realtime_action)
         
-        # 添加基本面分析按钮
-        fund_analysis_action = QAction("基本面", self)
-        fund_analysis_action.setStatusTip("打开基本面分析视图")
-        fund_analysis_action.triggered.connect(self.show_fund_analysis)
-        main_toolbar.addAction(fund_analysis_action)
+    def setup_status_bar(self):
+        """设置状态栏"""
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
         
-        # 添加分隔符
-        main_toolbar.addSeparator()
+        # 显示就绪状态
+        self.status_bar.showMessage("就绪")
         
-        # 添加运行回测按钮
-        run_backtest_action = QAction("回测", self)
-        run_backtest_action.setStatusTip("运行策略回测")
-        run_backtest_action.triggered.connect(self.run_backtest)
-        main_toolbar.addAction(run_backtest_action)
-    
-    def connect_signals_slots(self):
-        """连接信号和槽"""
-        # 标签页切换信号
-        self.tab_widget.currentChanged.connect(self.on_tab_changed)
-    
-    def load_config(self):
-        """加载配置"""
-        # 这里可以添加加载配置的代码
-        pass
-    
-    def on_tab_changed(self, index):
-        """标签页切换事件处理"""
-        tab_name = self.tab_widget.tabText(index)
-        self.statusBar().showMessage(f"当前视图: {tab_name}")
-    
+    def setup_connections(self):
+        """设置信号连接"""
+        # 股票选择信号
+        self.stock_selector.stock_selected.connect(self.on_stock_selected)
+        
+        # 标签页关闭信号
+        self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        
+    def setup_timer(self):
+        """设置定时器"""
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self.update_realtime_data)
+        
+    def on_stock_selected(self, stock_code):
+        """处理股票选择事件"""
+        self.stock_selected.emit(stock_code)
+        self.main_chart.load_stock_data(stock_code)
+        self.info_panel.update_stock_info(stock_code)
+        self.data_table.load_stock_data(stock_code)
+        
+        # 更新状态栏
+        self.status_bar.showMessage(f"已选择股票: {stock_code}")
+        
+    def close_tab(self, index):
+        """关闭标签页"""
+        if self.tab_widget.count() > 1:  # 保留至少一个标签页
+            self.tab_widget.removeTab(index)
+            
+    def new_workspace(self):
+        """新建工作区"""
+        # TODO: 实现新建工作区功能
+        self.status_bar.showMessage("新建工作区")
+        
+    def open_workspace(self):
+        """打开工作区"""
+        # TODO: 实现打开工作区功能
+        self.status_bar.showMessage("打开工作区")
+        
     def refresh_data(self):
         """刷新数据"""
-        self.statusBar().showMessage("正在刷新数据...")
-        # 这里添加刷新数据的代码
-        # 根据当前标签页调用相应视图的刷新方法
-        current_index = self.tab_widget.currentIndex()
-        if current_index == 0:
-            self.data_view.refresh_data()
-        elif current_index == 1:
-            self.chart_view.refresh_data()
-        elif current_index == 2:
-            self.strategy_view.refresh_data()
+        self.status_bar.showMessage("正在刷新数据...")
+        # TODO: 实现数据刷新逻辑
         
-        self.statusBar().showMessage("数据刷新完成")
-    
-    def import_data(self):
-        """导入数据"""
-        file_dialog = QFileDialog()
-        file_path, _ = file_dialog.getOpenFileName(
-            self, "选择数据文件", "", "CSV文件 (*.csv);;Excel文件 (*.xlsx *.xls);;所有文件 (*)"
-        )
+    def toggle_realtime(self, checked):
+        """切换实时数据更新"""
+        if checked:
+            self.update_timer.start(5000)  # 5秒更新一次
+            self.realtime_action.setText('停止实时')
+            self.status_bar.showMessage("实时数据更新已开启")
+        else:
+            self.update_timer.stop()
+            self.realtime_action.setText('开始实时')
+            self.status_bar.showMessage("实时数据更新已停止")
+            
+    def update_realtime_data(self):
+        """更新实时数据"""
+        # TODO: 实现实时数据更新逻辑
+        pass
         
-        if file_path:
-            self.statusBar().showMessage(f"正在导入数据: {file_path}")
-            # 这里添加导入数据的代码
-            self.statusBar().showMessage(f"数据导入完成: {file_path}")
-    
-    def export_data(self):
-        """导出数据"""
-        file_dialog = QFileDialog()
-        file_path, _ = file_dialog.getSaveFileName(
-            self, "保存数据文件", "", "CSV文件 (*.csv);;Excel文件 (*.xlsx);;所有文件 (*)"
-        )
+    def change_theme(self, theme_name):
+        """切换主题"""
+        self.theme_manager._apply_theme(self, theme_name)
+        self.theme_changed.emit(theme_name)
+        self.status_bar.showMessage(f"已切换到{theme_name}主题")
         
-        if file_path:
-            self.statusBar().showMessage(f"正在导出数据: {file_path}")
-            # 这里添加导出数据的代码
-            self.statusBar().showMessage(f"数据导出完成: {file_path}")
-    
-    def show_tech_analysis(self):
-        """显示技术分析视图"""
-        self.tab_widget.setCurrentIndex(1)  # 切换到图表分析标签页
-        self.chart_view.show_tech_analysis()
-    
-    def show_fund_analysis(self):
-        """显示基本面分析视图"""
-        self.tab_widget.setCurrentIndex(1)  # 切换到图表分析标签页
-        self.chart_view.show_fund_analysis()
-    
-    def show_market_analysis(self):
-        """显示市场分析视图"""
-        self.tab_widget.setCurrentIndex(1)  # 切换到图表分析标签页
-        self.chart_view.show_market_analysis()
-    
-    def create_new_strategy(self):
-        """创建新策略"""
-        self.tab_widget.setCurrentIndex(2)  # 切换到策略回测标签页
-        self.strategy_view.create_new_strategy()
-    
-    def run_backtest(self):
-        """运行回测"""
-        self.tab_widget.setCurrentIndex(2)  # 切换到策略回测标签页
-        self.strategy_view.run_backtest()
-    
-    def show_about_dialog(self):
+    def show_settings(self):
+        """显示设置对话框"""
+        dialog = SettingsDialog(self)
+        dialog.exec()
+        
+    def show_about(self):
         """显示关于对话框"""
-        QMessageBox.about(
-            self,
-            "关于 A股量化分析系统",
-            "A股量化分析系统 v1.0\n\n"
-            "一个针对中国A股市场的量化分析系统，提供基本数据获取、指标计算、策略选股等功能。\n\n"
-            "使用技术：Python, PyQt6, AKShare, PostgreSQL, Redis"
-        )
+        QMessageBox.about(self, "关于", 
+                         "A股量化分析系统 v0.1.0\n\n"
+                         "专业的股票分析和量化交易平台\n"
+                         "参考同花顺iFinder等专业财经软件设计")
+        
+    def closeEvent(self, event):
+        """窗口关闭事件"""
+        reply = QMessageBox.question(self, '确认退出', 
+                                   '确定要退出程序吗？',
+                                   QMessageBox.StandardButton.Yes | 
+                                   QMessageBox.StandardButton.No,
+                                   QMessageBox.StandardButton.No)
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # 停止定时器
+            if hasattr(self, 'update_timer'):
+                self.update_timer.stop()
+            event.accept()
+        else:
+            event.ignore()
 
 
-def main():
-    """主函数"""
+if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
-
-
-if __name__ == "__main__":
-    main()

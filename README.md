@@ -203,9 +203,6 @@ data:
 ### Q: 如何添加新的技术指标？
 A: 在 `core/analyzer/technical_indicators.py` 中添加指标计算函数，然后在UI中添加相应的显示逻辑。
 
-### Q: 如何自定义主题？
-A: 修改 `ui/styles/themes.py` 中的样式定义，或创建新的主题类。
-
 ### Q: 数据更新频率如何设置？
 A: 在 `config/app.yaml` 中修改 `update_interval` 参数。
 
@@ -226,18 +223,10 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ## 联系方式
 
-- 项目主页：[GitHub Repository]
+- 项目主页：[github.com/coastalbeach/stock-a]
 - 问题反馈：[Issues]
-- 邮箱：[your-email@example.com]
+- 邮箱：[480436175@qq.com]
 
-## 更新日志
-
-### v1.0.0 (2024-01-XX)
-- 初始版本发布
-- 基础UI框架完成
-- 数据获取和存储功能
-- 基本技术分析功能
-- 策略回测引擎
 
 ---
 
